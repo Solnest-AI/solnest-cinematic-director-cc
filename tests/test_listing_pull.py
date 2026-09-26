@@ -69,6 +69,22 @@ class PhotosAndAmenities(unittest.TestCase):
         html = "<script>" + json.dumps(blob)[1:-1] + ",\"x\":1}</script>"
         self.assertEqual(listing_pull.amenity_titles(html), ["Shared hot tub"])
 
+    def test_null_amenity_lists_are_empty_not_a_crash(self):
+        html = '<script>{"seeAllAmenitiesGroups":[{"title":"x","amenities":null},null,{"amenities":[{"title":"Wifi","available":true}]}]}</script>'
+        self.assertEqual(listing_pull.amenity_titles(html), ["Wifi"])
+
+    def test_non_image_download_is_not_left_on_disk(self):
+        d = pathlib.Path(tempfile.mkdtemp())
+        class R:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return b"<html>" + b"x" * 20000 + b"</html>"
+        from unittest import mock
+        with mock.patch.object(listing_pull.urllib.request, "urlopen", return_value=R()), \
+                mock.patch.object(listing_pull.time, "sleep"):
+            self.assertFalse(listing_pull.fetch("https://example.com/a.jpg", d / "01.jpg"))
+        self.assertFalse((d / "01.jpg").exists())
+
     def test_amenities_missing_is_empty_not_a_crash(self):
         self.assertEqual(listing_pull.amenity_titles("<html></html>"), [])
 

@@ -111,6 +111,51 @@ class FactsAndVoice(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+class DisplayedWords(unittest.TestCase):
+    """Codex P1: the gate must check what the slide SAYS, not only the claims list."""
+    def plan(self, title, claims, caption="Nice place.", cta=None):
+        s = {"t": "room", "photo": "01", "title": title, "claims": claims}
+        if cta:
+            s = {"t": "last", "photo": "01", "cta": cta, "line": title, "claims": claims}
+        return {"slides": [s], "caption": caption, "caption_claims": []}
+
+    def test_invented_number_fails_even_with_empty_claims(self):
+        errs = carousel.check_numbers(self.plan("Private hot tub. Sleeps 20.", []), "Sleeps 2. Two golf simulators.")
+        self.assertTrue(any("20" in e for e in errs))
+
+    def test_number_words_and_digits_match_both_ways(self):
+        facts = "Nine floors above the lake. 4 guests. Two queen beds. 2.5 baths."
+        p = self.plan("Nine floors, sleeps four, 2 queens, 2.5 baths", ["nine floors"])
+        self.assertEqual(carousel.check_numbers(p, facts), [])
+
+    def test_caption_numbers_checked(self):
+        errs = carousel.check_numbers(self.plan("Hi", [], caption="Sleeps 14 easily."), "Sleeps 12.")
+        self.assertTrue(any("caption" in e and "14" in e for e in errs))
+
+    def test_host_cta_numbers_are_exempt(self):
+        p = self.plan("Kelowna", ["kelowna"], caption="Book 3 nights, save 10%.", cta="Book 3 nights, save 10%")
+        self.assertEqual(carousel.check_numbers(p, "Kelowna."), [])
+
+    def test_negated_fact_does_not_back_a_claim(self):
+        miss = carousel.check_facts(self.plan("A hot tub", ["hot tub"]), "Pool. No hot tub. Sauna.")
+        self.assertEqual(miss, {"01": ["hot tub"]})
+
+    def test_claim_found_once_negated_once_plain_still_passes(self):
+        facts = "No hot tub in the unit. The building has a shared hot tub."
+        self.assertEqual(carousel.check_facts(self.plan("Hot tub", ["hot tub"]), facts), {})
+
+    def test_unbacked_words_are_reported(self):
+        words = carousel.unbacked_words(self.plan("Private beach access", ["beach"]), "Walk to the beach parks.")
+        self.assertIn("private", words.get("01", []))
+        self.assertIn("access", words.get("01", []))
+        self.assertNotIn("beach", words.get("01", []))
+
+    def test_hashtag_after_punctuation_caught(self):
+        p = self.plan("Hi", [], caption="Book now,#beach")
+        self.assertTrue(any("hashtag" in h for h in carousel.check_voice(p)))
+
+
+@unittest.skipUnless(HAVE_PIL, "Pillow not installed")
 class PlanValidation(unittest.TestCase):
     def write(self, plan):
         d = pathlib.Path(tempfile.mkdtemp())
@@ -141,9 +186,21 @@ class PlanValidation(unittest.TestCase):
             carousel.load_plan(self.write(self.base([{"t": "room", "photo": "01", "title": "Hi"}])))
         self.assertIn("claims", str(cm.exception))
 
+    def test_factual_templates_need_at_least_one_claim(self):
+        with self.assertRaises(carousel.PlanError) as cm:
+            carousel.load_plan(self.write(self.base([{"t": "room", "photo": "01", "title": "Hi", "claims": []}])))
+        self.assertIn("at least one claim", str(cm.exception))
+
+    def test_unknown_look_rejected(self):
+        p = self.base([{"t": "photo", "photo": "01", "label": "x", "claims": []}])
+        p["look"] = "original"
+        with self.assertRaises(carousel.PlanError) as cm:
+            carousel.load_plan(self.write(p))
+        self.assertIn("look", str(cm.exception))
+
     def test_good_plan_loads_and_numbers_slides(self):
         p = carousel.load_plan(self.write(self.base([
-            {"t": "cover", "photo": "01", "title": "Nine floors", "claims": []},
+            {"t": "cover", "photo": "01", "title": "Nine floors", "claims": ["nine floors"]},
             {"t": "review", "quote": "Stunning views", "by": "Marcy", "claims": []}])))
         self.assertEqual([s["id"] for s in p["slides"]], ["01", "02"])
         self.assertEqual(p.get("look"), "house")
@@ -169,6 +226,36 @@ class Contrast(unittest.TestCase):
         grey = Image.new("RGB", (2160, 2700), (128, 128, 128))
         col, r, _ = carousel.pick_text_on(grey, (96, 400, 800, 300), ["#777777", "#999999"])
         self.assertLess(r, carousel.MIN_RATIO)
+
+    def test_mid_tone_text_uses_the_worst_of_both_extremes(self):
+        im = Image.new("RGB", (2160, 2700), (0, 0, 0))
+        im.paste((0x77, 0x77, 0x77), (0, 0, 2160, 1350))   # top half grey, bottom half black
+        r, _ = carousel.measure(im, (100, 500, 800, 350), (0x77, 0x77, 0x77))
+        self.assertLess(r, 1.5)
+
+    def test_small_bright_patch_behind_text_is_not_averaged_away(self):
+        im = Image.new("RGB", (2160, 2700), (0, 0, 0))
+        im.paste((255, 255, 255), (600, 600, 660, 660))    # 30x30 CSS px inside an 800x300 block
+        r, _ = carousel.measure(im, [(100, 250, 800, 60), (100, 310, 800, 60)], (255, 255, 255))
+        self.assertLess(r, carousel.MIN_RATIO)
+
+    def test_flat_photo_is_not_crushed_by_levels(self):
+        im = Image.new("RGB", (80, 80), (100, 120, 140))
+        out = carousel.levels(im, False).getpixel((0, 0))
+        self.assertTrue(all(abs(a - b) <= 25 for a, b in zip(out, (100, 120, 140))), out)
+
+    def test_look_none_leaves_pixels_alone(self):
+        d = pathlib.Path(tempfile.mkdtemp())
+        Image.new("RGB", (400, 500), (100, 120, 140)).save(d / "a.png")
+        carousel.prep_photo(d / "a.png", {}, 0.8, d / "b.png", "none")
+        px = Image.open(d / "b.png").convert("RGB").getpixel((300, 300))
+        self.assertTrue(all(abs(a - b) <= 2 for a, b in zip(px, (100, 120, 140))), px)
+
+    def test_same_family_fonts_need_one_face(self):
+        B = {"display_font": "Inter", "text_font": "Inter"}
+        self.assertIn(">= 1;", carousel.fonts_ok_js(B, italic=True))
+        B = {"display_font": "Cormorant Garamond", "text_font": "Montserrat"}
+        self.assertIn(">= 3;", carousel.fonts_ok_js(B, italic=True))
 
     def test_house_look_is_deterministic_and_keeps_size(self):
         im = Image.new("RGB", (64, 80), (120, 140, 160))

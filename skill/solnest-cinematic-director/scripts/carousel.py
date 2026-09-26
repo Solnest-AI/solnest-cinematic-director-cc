@@ -67,6 +67,8 @@ TEMPLATES = {
     "last": ("photo", "cta"),
 }
 PHOTO_TEMPLATES = ("cover", "room", "photo", "last")
+FACTUAL = ("cover", "room", "split", "list", "last")   # these must cite at least one fact
+LOOKS = ("house", "levels", "none")  # house = levels + one grade; levels = tone fix only; none = untouched
 TEXT_FIELDS = ("label", "title", "body", "line", "cta")
 BRAND_KEYS = ("name", "ink", "paper", "accent", "on_photo", "display_font", "text_font")
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -133,6 +135,8 @@ def load_plan(path):
                 errs.append(f"{tag} ({t}): missing '{f}'")
         if t != "review" and not isinstance(s.get("claims"), list):
             errs.append(f"{tag} ({t}): needs a 'claims' list (the facts behind its words; [] if none)")
+        elif t in FACTUAL and not s["claims"]:
+            errs.append(f"{tag} ({t}): needs at least one claim (the listing phrase behind its words)")
         if t == "diptych" and (not isinstance(s.get("photos"), list) or len(s["photos"]) != 2
                                or not all(isinstance(p, dict) and p.get("photo") for p in s["photos"])):
             errs.append(f"{tag} (diptych): 'photos' must be two {{\"photo\": id}} entries")
@@ -140,6 +144,8 @@ def load_plan(path):
             rows = s.get("rows") or []
             if not (2 <= len(rows) <= 6) or not all(isinstance(r, list) and len(r) == 2 for r in rows):
                 errs.append(f"{tag} (list): 'rows' must be 2 to 6 [left, right] pairs")
+    if plan.get("look", "house") not in LOOKS:
+        errs.append(f"plan: look '{plan.get('look')}' must be one of {', '.join(LOOKS)}")
     if errs:
         raise PlanError("\n".join(errs))
     plan.setdefault("look", "house")
@@ -178,17 +184,101 @@ def usable_logo(path):
 
 # --- gates ----------------------------------------------------------------------
 
+_NEG = re.compile(r"\b(no|not|without|never|non|isn't|aren't|don't|doesn't)\W+(?:\w+\W+){0,2}$")
+
+
+def backed(claim, f):
+    """True if `claim` appears in the normalized facts `f` at least once NOT negated in
+    its own clause ("No hot tub." does not back "hot tub")."""
+    c = norm(claim)
+    if not c:
+        return False
+    i = f.find(c)
+    while i >= 0:
+        before = re.split(r"[.!?;:\n]", f[max(0, i - 40):i])[-1]
+        if not _NEG.search(before):
+            return True
+        i = f.find(c, i + 1)
+    return False
+
+
 def check_facts(plan, facts_text):
     f = norm(facts_text)
     missing = {}
     for i, s in enumerate(plan["slides"], 1):
-        miss = [c for c in s.get("claims", []) if norm(c) not in f]
+        miss = [c for c in s.get("claims", []) if not backed(c, f)]
         if miss:
             missing[sid(s, i)] = miss
-    cmiss = [c for c in plan.get("caption_claims", []) if norm(c) not in f]
+    cmiss = [c for c in plan.get("caption_claims", []) if not backed(c, f)]
     if cmiss:
         missing["caption"] = cmiss
     return missing
+
+
+NUM_WORDS = {w: str(n) for n, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+    "sixteen seventeen eighteen nineteen twenty".split())}
+NUM_WORDS.update({"thirty": "30", "forty": "40", "fifty": "50", "hundred": "100"})
+
+
+def numbers_in(text):
+    t = re.sub(r"@\w+|https?://\S+|\b\w+\.(?:com|ca|net|org)\b", " ", norm(text))
+    found = set(re.findall(r"\d+(?:\.\d+)?", t))
+    found |= {n for w, n in NUM_WORDS.items() if re.search(rf"\b{w}\b", t)}
+    return found
+
+
+def display_text(s):
+    """Our words on a slide (not the host's CTA, not the guest's quote)."""
+    parts = [s.get(f) for f in ("label", "title", "body", "line")]
+    parts += [f"{k} {v}" for k, v in s.get("rows") or []]
+    return " ".join(str(p) for p in parts if p)
+
+
+def check_numbers(plan, facts_text):
+    """Every number we print (digits or words) must appear in the listing text. Catches
+    the classic invention: sleeps 20, 5 bedrooms, 2 min to the beach."""
+    have = numbers_in(facts_text)
+    host = set().union(*(numbers_in(s.get("cta", "")) for s in plan["slides"]))
+    errs = []
+    for i, s in enumerate(plan["slides"], 1):
+        for n in sorted(numbers_in(display_text(s)) - have):
+            errs.append(f"slide {sid(s, i)}: the number {n} is not in the listing text")
+    for n in sorted(numbers_in(plan.get("caption", "")) - have - host):
+        errs.append(f"caption: the number {n} is not in the listing text")
+    return errs
+
+
+_STOP = set("""about above after again also always another around because been before being below
+between both could didn't does doing done down during each even every from further have having here
+into just like made make many more most much must near never next only other over same should since
+some such than that their them then there these they this those through under until very were what
+when where which while will with within without would your yours you're it's""".split())
+
+
+def unbacked_words(plan, facts_text):
+    """Content words we print that never appear in the listing text. A NOTE, not a failure:
+    most are style ("details", "close at hand"); an invented amenity shows up here too."""
+    words = set(re.findall(r"[a-z]+", norm(facts_text)))
+
+    def known(w):
+        return (w in words or w in NUM_WORDS or w.rstrip("s") in words or w + "s" in words
+                or w + "es" in words or w + "ly" in words
+                or (w.endswith("ing") and (w[:-3] in words or w[:-3] + "e" in words))
+                or (w.endswith("ed") and (w[:-2] in words or w[:-1] in words)))
+    host = set(re.findall(r"[a-z]+", norm(" ".join(s.get("cta", "") for s in plan["slides"]))))
+    out_ = {}
+    for i, s in enumerate(plan["slides"], 1):
+        miss = sorted({w for w in re.findall(r"[a-z]+", norm(display_text(s)))
+                       if len(w) >= 4 and w not in _STOP and not known(w)})
+        if miss:
+            out_[sid(s, i)] = miss
+    cap = re.sub(r"@\w+", " ", plan.get("caption", ""))
+    miss = sorted({w for w in re.findall(r"[a-z]+", norm(cap))
+                   if len(w) >= 4 and w not in _STOP and w not in host and not known(w)})
+    if miss:
+        out_["caption"] = miss
+    return out_
 
 
 def check_review(slide, reviews):
@@ -229,7 +319,7 @@ def check_voice(plan):
             hits.append(f"{where}: em dash")
         if "–" in text:
             hits.append(f"{where}: en dash")
-        if re.search(r"(^|\s)#\w", text):
+        if re.search(r"(?<![\w&])#\w", text):
             hits.append(f"{where}: hashtag")
         if _EMOJI.search(text):
             hits.append(f"{where}: emoji")
@@ -267,25 +357,49 @@ def ratio(a, b):
     return (la + 0.05) / (lb + 0.05)
 
 
-def measure(bg2x, rect, rgb):
-    """Worst-case contrast of `rgb` against the painted background under `rect` (CSS px
-    on a 2x screenshot), plus how busy that background is."""
-    x, y, w, h = rect
-    pad = 6
-    box = tuple(int(v * 2) for v in (max(0, x - pad), max(0, y - pad), min(W, x + w + pad), min(H, y + h + pad)))
-    reg = bg2x.crop(box).resize((max(1, (box[2] - box[0]) // 2), max(1, (box[3] - box[1]) // 2)), Image.BOX)
+def _extremes(reg):
     px = sorted(getattr(reg, "get_flattened_data", reg.getdata)(), key=rel_lum)
-    lo, hi = px[int(len(px) * 0.02)], px[int(len(px) * 0.98) - 1]
-    worst = hi if rel_lum(rgb) > 0.5 else lo
+    return px[int(len(px) * 0.02)], px[max(0, int(len(px) * 0.98) - 1)]
+
+
+def measure(bg2x, rects, rgb):
+    """Worst-case contrast of `rgb` against the painted background (2x screenshot) under
+    each text line, measured in short tiles so a small bright lamp or window behind one
+    word cannot hide in an average, and against BOTH the darkest and brightest 2% of each
+    tile (mid-tone text can fail either way). Also returns how busy the background is.
+    `rects`: one [x, y, w, h] in CSS px, or a list of them (one per line of text)."""
+    if rects and isinstance(rects[0], (int, float)):
+        rects = [rects]
+    rects = [r for r in rects or [] if r[2] > 0 and r[3] > 0]
+    if not rects:
+        return 21.0, 0.0
+    worst, pad = None, 4
+    for x, y, w, h in rects:
+        n = max(1, int(round(w / max(40.0, h * 1.5))))
+        for k in range(n):
+            x0, x1 = x + w * k / n, x + w * (k + 1) / n
+            box = (int(max(0, x0 - pad) * 2), int(max(0, y - pad) * 2),
+                   int(min(W, x1 + pad) * 2), int(min(H, y + h + pad) * 2))
+            if box[2] <= box[0] or box[3] <= box[1]:
+                continue
+            reg = bg2x.crop(box)
+            reg.thumbnail((48, 48), Image.BOX)
+            lo, hi = _extremes(reg)
+            r = min(ratio(rgb, lo), ratio(rgb, hi))
+            worst = r if worst is None else min(worst, r)
+    ux0, uy0 = min(r[0] for r in rects), min(r[1] for r in rects)
+    ux1, uy1 = max(r[0] + r[2] for r in rects), max(r[1] + r[3] for r in rects)
+    ub = tuple(int(v * 2) for v in (max(0, ux0 - 6), max(0, uy0 - 6), min(W, ux1 + 6), min(H, uy1 + 6)))
+    reg = bg2x.crop(ub).resize((max(1, (ub[2] - ub[0]) // 2), max(1, (ub[3] - ub[1]) // 2)), Image.BOX)
     edge = ImageStat.Stat(reg.convert("L").filter(ImageFilter.FIND_EDGES)).mean[0]
-    return round(ratio(rgb, worst), 2), round(edge, 1)
+    return round(worst if worst is not None else 21.0, 2), round(edge, 1)
 
 
-def pick_text_on(bg2x, rect, candidates):
+def pick_text_on(bg2x, rects, candidates):
     """First candidate colour that passes on this background, else the best one."""
     best = None
     for c in candidates:
-        r, e = measure(bg2x, rect, hexrgb(c))
+        r, e = measure(bg2x, rects, hexrgb(c))
         if r >= MIN_RATIO:
             return c, r, e
         if best is None or r > best[1]:
@@ -318,7 +432,8 @@ def levels(im, night):
             if c >= p * tot:
                 return i
         return 255
-    lo, hi = pct(0.004), pct(0.998 if night else 0.996)
+    # clamp so a flat, low-contrast photo gets a gentle stretch, never a crushed shift
+    lo, hi = min(pct(0.004), 24), max(pct(0.998 if night else 0.996), 230)
     top, bot = (250, 4) if night else (247, 6)
     scale = min((top - bot) / max(1, hi - lo), 1.25)
     lut = [max(0, min(255, int((v - lo) * scale + bot))) for v in range(256)]
@@ -357,7 +472,8 @@ def prep_photo(src, spec, aspect, dest, look):
     th = int(round(tw / aspect))
     soft = im.size[0] < tw * 0.6
     im = im.resize((tw, th), Image.LANCZOS)
-    im = levels(im, spec.get("night", False))
+    if look in ("house", "levels"):
+        im = levels(im, spec.get("night", False))
     if look == "house":
         im = house_look(im, spec.get("night", False))
     im.save(dest, quality=94)
@@ -395,12 +511,17 @@ html,body{{width:{W}px;height:{H}px;overflow:hidden;background:{bg}}}
 
 
 def fonts_ok_js(B, italic):
+    """JS that loads the bundled faces this carousel needs and proves they loaded.
+    A family without an italic file (the sans fonts) gets the browser's slanted italic."""
     d, t = B["display_font"], B["text_font"]
-    loads = [f"600 72px '{d}'", f"600 26px '{t}'"] + ([f"italic 500 60px '{d}'"] if italic else [])
+    loads, faces = [f"600 72px '{d}'", f"600 26px '{t}'"], {(d, "normal"), (t, "normal")}
+    if italic and FONTS.get(d, {}).get("italic"):
+        loads.append(f"italic 500 60px '{d}'")
+        faces.add((d, "italic"))
     load = "".join(f"await document.fonts.load({json.dumps(x)});" for x in loads)
     checks = " && ".join(f"document.fonts.check({json.dumps(x)})" for x in loads)
     return (f"(async () => {{ {load} await document.fonts.ready; return {checks} && "
-            f"[...document.fonts].filter(f => f.status === 'loaded').length >= {len(loads)}; }})()")
+            f"[...document.fonts].filter(f => f.status === 'loaded').length >= {len(faces)}; }})()")
 
 
 def scrim(alpha, anchor):
@@ -496,14 +617,15 @@ def review_slide(s, B, fg, hide):
     return page(inner, B, B["accent"], hide)
 
 
-RECT_JS = """(() => { const b = document.getElementById('blk');
-  let x0=1e9,y0=1e9,x1=0,y1=0; const add = r => { if (!r.width || !r.height) return;
-    x0=Math.min(x0,r.left); y0=Math.min(y0,r.top); x1=Math.max(x1,r.right); y1=Math.max(y1,r.bottom); };
+RECT_JS = """(() => { const b = document.getElementById('blk'); const rects = [];
+  const add = r => { if (r.width && r.height) rects.push([r.left, r.top, r.width, r.height]); };
   const tw = document.createTreeWalker(b, NodeFilter.SHOW_TEXT); let n;
   while ((n = tw.nextNode())) { if (!n.textContent.trim()) continue;
     const rg = document.createRange(); rg.selectNodeContents(n); for (const r of rg.getClientRects()) add(r); }
   for (const el of b.querySelectorAll('img,svg')) add(el.getBoundingClientRect());
-  return [x0, y0, x1-x0, y1-y0]; })()"""
+  let x0=1e9,y0=1e9,x1=0,y1=0;
+  for (const [x,y,w,h] of rects) { x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x+w); y1=Math.max(y1,y+h); }
+  return {box: [x0, y0, x1-x0, y1-y0], rects}; })()"""
 
 PANEL_JS = """((r) => { const p = document.getElementById('panel'); if (!p) return false;
   const pad = 36; p.style.left = (r[0]-pad)+'px'; p.style.top = (r[1]-pad)+'px';
@@ -525,12 +647,12 @@ class Renderer:
         self.pg.goto(f.as_uri(), wait_until="load")
         if not self.pg.evaluate(self.fonts_js):
             raise RuntimeError("fonts did not load; refusing to render with fallback fonts")
-        rect = self.pg.evaluate(RECT_JS)
+        geo = self.pg.evaluate(RECT_JS)
         if panel_fit:
-            self.pg.evaluate(PANEL_JS, rect)
+            self.pg.evaluate(PANEL_JS, geo["box"])
         png = self.work / f"_r{self.n}.png"
         self.pg.screenshot(path=str(png))
-        return rect, Image.open(png).convert("RGB")
+        return geo["rects"], Image.open(png).convert("RGB")
 
     def close(self):
         self.br.close()
@@ -548,9 +670,9 @@ def choose_photo_layout(R, s, B, img, logo):
             tried.append((a, "clean", hexc, r, e))
             if r >= MIN_RATIO and e <= BUSY_EDGE:
                 return a, hexc, "clean", 0, r, e, len(tried)
-    # 2) light gradient; covers and end cards may take a deeper fade (a natural vignette)
-    # before the paper card, which reads mid-market on the two slides that matter most
-    for alpha in ((0.25, 0.4, 0.6) if s["t"] in ("cover", "last") else (0.25, 0.4)):
+    # 2) the lightest gradient that passes, up to a deep fade (a natural vignette): a paper
+    # card behind text reads like a sticker, so it is the last resort on every photo slide
+    for alpha in (0.25, 0.4, 0.6):
         for a in order:
             rect, bg = R.shot(photo_slide(s, B, img, a, B["on_photo"], "scrim", alpha, True, logo))
             r, e = measure(bg, rect, light)
@@ -589,6 +711,7 @@ def gate(plan, pdir):
                 match = next(r for r in reviews if norm(r.get("author")) == norm(s["by"]) and r.get("rating") == 5
                              and norm(s["quote"]).strip(" \"'") in norm(r.get("text")))
                 s["_by"] = attribution(match)
+    problems += [f"numbers: {e}" for e in check_numbers(plan, facts)]
     problems += [f"voice: {h}" for h in check_voice(plan)]
     for s in plan["slides"]:
         specs = s["photos"] if s["t"] == "diptych" else ([s] if s.get("photo") else [])
@@ -601,7 +724,8 @@ def gate(plan, pdir):
         logo = usable_logo((pdir / plan["brand"]).parent / B["logo"])
         if logo is None:
             out(f"note: logo {B['logo']} has no transparent background; using a wordmark instead")
-    return problems, {"B": B, "logo": logo}
+    notes = unbacked_words(plan, facts)
+    return problems, {"B": B, "logo": logo, "notes": notes}
 
 
 def build(plan_path, check_only=False):
@@ -618,8 +742,13 @@ def build(plan_path, check_only=False):
         for p in problems:
             out(f"  - {p}")
         return 2
+    if ctx["notes"]:
+        out("REVIEW THESE WORDS (not found in the listing text; fine if they are style, "
+            "fix them if they claim something):")
+        for k, v in ctx["notes"].items():
+            out(f"  {k}: {', '.join(v)}")
     if check_only:
-        out(f"CHECKS PASSED: {len(plan['slides'])} slides, facts, reviews, voice, photos, brand")
+        out(f"CHECKS PASSED: {len(plan['slides'])} slides, facts, numbers, reviews, voice, photos, brand")
         return 0
     B, logo = ctx["B"], ctx["logo"]
 
@@ -664,7 +793,8 @@ def build(plan_path, check_only=False):
                     imgs = []
                     for k, p in enumerate(s["photos"]):
                         name = f"photo_{n:02d}_{k}.jpg"
-                        prep_photo(photo_path(pdir, plan, p["photo"], p.get("source")), p, 3 / 4, work / name, look)
+                        src = photo_path(pdir, plan, p["photo"], p.get("source", s.get("source")))
+                        prep_photo(src, p, 3 / 4, work / name, look)
                         imgs.append(name)
                     rect, bg = R.shot(diptych_slide(s, B, imgs, B["ink"], True))
                     col, r, e = pick_text_on(bg, rect, [B["ink"], B["on_photo"]])
@@ -694,7 +824,8 @@ def build(plan_path, check_only=False):
     sheet.save(work / "preview.jpg", quality=90)
     for p in list(work.glob("_r*")) + list(work.glob("photo_*")) + list(work.glob("logo_*")):
         p.unlink()
-    (work / "report.json").write_text(json.dumps({"plan": plan_path.name, "passed": ok_all, "slides": report},
+    (work / "report.json").write_text(json.dumps({"plan": plan_path.name, "passed": ok_all, "slides": report,
+                                                  "words_not_in_listing": ctx["notes"]},
                                                  indent=1, ensure_ascii=False), encoding="utf-8")
     final_dir = pdir / "runs" / f"{plan_path.stem}-{stamp}{'' if ok_all else '-FAILED'}"
     work.rename(final_dir)

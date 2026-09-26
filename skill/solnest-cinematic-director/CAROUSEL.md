@@ -22,7 +22,7 @@ preview plus a plain yes before anything is called done.**
 | Label only what the photo shows | "The balcony" once landed on an indoor window nook. Words were true, photo was wrong. |
 | Review quotes copied exactly | A tidied quote is a made-up quote. The builder checks it against the scraped review. |
 | Contrast measured on the painted slide | Averages hid dark text on a dark fireplace. Worst-case pixels, 4.5:1, every text block. |
-| One grade across every photo | Mixed phone photos read as one shoot. Remaps tone only, moves no pixel. |
+| One grade across every photo | Mixed phone photos read as one shoot. Remaps tone only, moves no pixel. `"look": "house"` (default) = tone fix + grade, `"levels"` = tone fix only, `"none"` = untouched. |
 | Photo-first, calm type, lots of margin | Upscale feeds: 96px margins, 2 fonts, no page numbers, no handle footer, no "save this" stickers, no pills or badges. |
 
 ## What this needs
@@ -137,7 +137,12 @@ The photos and the text are.
   the balcony. Check every slide against its photo.
 - **Every word traceable.** For each slide, `claims` lists the exact phrases from
   `facts.txt` that back its words (copy them). Shared amenities say shared; seasonal says
-  seasonal. `[]` only when the words claim nothing ("The details").
+  seasonal. `cover`, `room`, `split`, `list` and `last` need at least one claim; `photo`
+  and `diptych` may use `[]` when the words claim nothing ("The details"). A phrase only
+  counts where the listing states it, not where it says "no hot tub".
+- **Every number must be in the listing.** Sleeps, bedrooms, baths, minutes, floors:
+  digits or words ("four" matches "4"). The check refuses any number the listing does not
+  contain. Only the host's own CTA is exempt.
 - **Titles** are 7 words or fewer and concrete ("Two golf simulators"). Never use "stunning",
   "luxurious", "oasis" or "retreat" unless the listing says it and it is the point.
 - **Reviews:** copy one or two sentences EXACTLY, including the guest's own spelling.
@@ -208,9 +213,14 @@ diptych photo) uses `source/fixed/NN.png` from the optional photo fix.
 python3 SCRIPTS/carousel.py listing-carousels/<slug>/plan.json --check
 ```
 
-It checks the plan shape, brand, facts, review quotes, voice and photo files. Fix every
-line it prints. **Never make a check pass by deleting a claim while keeping the words.**
-Change the words to what the listing actually says.
+It checks the plan shape, brand, facts, numbers, review quotes, voice and photo files.
+Fix every line it prints. **Never make a check pass by deleting a claim while keeping the
+words.** Change the words to what the listing actually says.
+
+It also prints **REVIEW THESE WORDS**: words on your slides or caption that never appear
+in the listing text. Most are style ("close at hand", "the details") and can stay. Any
+word that names a thing or a feature ("private", "beach", "ski-in") is an invention until
+the listing says it: change it.
 
 ## Step 5 - Render
 
@@ -248,7 +258,9 @@ plain yes means done. For changes, edit the plan and render again.
 
 ### Optional: fix a photo (KIE credits, off by default)
 
-Only when the host asks, or a key photo is clearly dark, blown out or crooked:
+Never run this on your own. If a key photo is clearly dark, blown out or crooked, you may
+OFFER it ("Photo 16 is dark. I can polish it for about $0.07, want me to?"). Run it only
+after the host asks or says yes:
 
 ```bash
 python3 SCRIPTS/photo_fix.py source/full/16.jpg --out source/fixed --dry-run

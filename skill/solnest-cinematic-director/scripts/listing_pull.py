@@ -23,6 +23,7 @@ Needs: pip install playwright pillow ; python -m playwright install chromium
 """
 import argparse
 import concurrent.futures as cf
+import io
 import json
 import pathlib
 import re
@@ -107,7 +108,9 @@ def amenity_titles(html):
         groups, _ = json.JSONDecoder().raw_decode(html, j)
     except ValueError:
         return []
-    titles = [a["title"] for g in groups if isinstance(g, dict) for a in g.get("amenities", [])
+    if not isinstance(groups, list):
+        return []
+    titles = [a["title"] for g in groups if isinstance(g, dict) for a in (g.get("amenities") or [])
               if isinstance(a, dict) and a.get("available") and a.get("title")]
     return list(dict.fromkeys(titles))
 
@@ -163,14 +166,18 @@ def fetch(url, dest, tries=3):
                 data = r.read()
             if len(data) < 10000:
                 raise ValueError(f"only {len(data)} bytes")
-            dest.write_bytes(data)
-            im = Image.open(dest)
-            if im.format != "JPEG":
+            im = Image.open(io.BytesIO(data))
+            im.load()  # decode fully BEFORE anything touches the disk
+            if im.format == "JPEG":
+                dest.write_bytes(data)
+            else:
                 im.convert("RGB").save(dest, "JPEG", quality=95)
             return True
-        except Exception as e:  # network, 404, not an image
+        except Exception as e:  # network, 404, an HTML error page, a truncated image
             last = e
             time.sleep(1.5 * (k + 1))
+    if dest.exists():
+        dest.unlink()
     out(f"  could not download {url}: {last}")
     return False
 
@@ -191,8 +198,12 @@ def make_thumbs_and_sheet(src):
     d = ImageDraw.Draw(sheet)
     f = label_font(26)
     for i, p in enumerate(full):
-        im = Image.open(p)
-        im.thumbnail((480, 480))
+        try:
+            im = Image.open(p)
+            im.thumbnail((480, 480))
+        except Exception as e:  # never let one bad file sink the whole pull
+            out(f"  skipping unreadable photo {p.name}: {e}")
+            continue
         im.save(src / "thumbs" / p.name, quality=85)
         t = im.copy()
         t.thumbnail((tw - 4, th - 4))

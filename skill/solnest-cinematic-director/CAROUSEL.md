@@ -180,7 +180,7 @@ The photos and the text are.
   "slides": [
     {"t": "cover", "photo": "36", "focal": [0.5, 0.5], "night": true,
      "label": "Kelowna, British Columbia", "title": "Nine floors above the lake",
-     "claims": ["Kelowna", "Nine floors above Okanagan Lake"]},
+     "claims": ["Kelowna, British Columbia", "Nine floors above Okanagan Lake"]},
     {"t": "room", "photo": "35", "label": "Downstairs", "title": "Two golf simulators",
      "claims": ["two golf simulators", "resort floor downstairs"]},
     {"t": "split", "photo": "37", "label": "The resort floor", "title": "An indoor putting green",

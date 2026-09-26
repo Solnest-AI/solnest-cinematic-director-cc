@@ -9,12 +9,15 @@ Gates, all run BEFORE the browser starts (exit 2, nothing rendered):
   * plan shape      known templates, required fields, at most 10 slides
   * brand           hex colours, bundled fonts only
   * facts           every claim on every slide and in the caption must appear in the
-                    listing text (case/quote/whitespace-insensitive)
+                    listing text, not negated ("No hot tub" backs nothing)
+  * words           every word a slide prints must come from that slide's own claims
+                    (or be a plain style word); the caption from its claims
+  * numbers         every number printed must appear in the listing (digits or words)
   * reviews         a quote must be a verbatim excerpt of ONE scraped 5-star review, by
                     that reviewer; no reviews = no review slide
   * voice           no em/en dashes, hashtags or emoji in slides or caption
 Then, while rendering (exit 1, run folder marked -FAILED):
-  * contrast        text colour vs the darkest/brightest 2% of the pixels actually painted
+  * contrast        text colour vs the darkest/brightest blocks of the pixels actually painted
                     behind it, >= 4.5:1, busy photos refuse text without an overlay.
                     Preference: clean > light gradient > solid panel.
   * fonts           bundled fonts must be loaded before any screenshot.
@@ -92,6 +95,14 @@ def norm(s):
     """Compare text the way a reader would: same letters, any quotes/spacing/case."""
     s = unicodedata.normalize("NFKC", str(s or "")).translate(_TRANS)
     return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def norm_lines(s):
+    """norm() but line breaks survive as single '\n' characters. Same length as the
+    flattened form (replace '\n' by ' '), so indices line up between the two."""
+    s = unicodedata.normalize("NFKC", str(s or "")).translate(_TRANS)
+    s = re.sub(r"\s*\n\s*", "\n", s)
+    return re.sub(r"[^\S\n]+", " ", s).strip().lower()
 
 
 def esc(s):
@@ -187,23 +198,30 @@ def usable_logo(path):
 _NEG = re.compile(r"\b(no|not|without|never|non|isn't|aren't|don't|doesn't)\W+(?:\w+\W+){0,2}$")
 
 
-def backed(claim, f):
-    """True if `claim` appears in the normalized facts `f` at least once NOT negated in
-    its own clause ("No hot tub." does not back "hot tub")."""
+_NEG_AFTER = re.compile(r"^\W*(?:is|are|was|were)?\s*(?:not|n't)\s+(?:available|included|provided|allowed|"
+                        r"permitted|working|open|offered)\b|^\W*(?:unavailable|excluded|closed)\b")
+
+
+def backed(claim, lines):
+    """True if `claim` appears in the facts at least once NOT negated in its own clause:
+    "No hot tub." and "Hot tub is not available" do not back "hot tub". `lines` is
+    norm_lines(facts); a line break ends a clause ("No smoking" / "Hot tub")."""
     c = norm(claim)
     if not c:
         return False
-    i = f.find(c)
+    flat = lines.replace("\n", " ")
+    i = flat.find(c)
     while i >= 0:
-        before = re.split(r"[.!?;:\n]", f[max(0, i - 40):i])[-1]
-        if not _NEG.search(before):
+        before = re.split(r"[.!?;:\n]", lines[max(0, i - 40):i])[-1]
+        after = re.split(r"[.!?;:\n]", lines[i + len(c):i + len(c) + 40])[0]
+        if not _NEG.search(before) and not _NEG_AFTER.search(after):
             return True
-        i = f.find(c, i + 1)
+        i = flat.find(c, i + 1)
     return False
 
 
 def check_facts(plan, facts_text):
-    f = norm(facts_text)
+    f = norm_lines(facts_text)
     missing = {}
     for i, s in enumerate(plan["slides"], 1):
         miss = [c for c in s.get("claims", []) if not backed(c, f)]
@@ -218,11 +236,18 @@ def check_facts(plan, facts_text):
 NUM_WORDS = {w: str(n) for n, w in enumerate(
     "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
     "sixteen seventeen eighteen nineteen twenty".split())}
-NUM_WORDS.update({"thirty": "30", "forty": "40", "fifty": "50", "hundred": "100"})
+TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
+NUM_WORDS.update({w: str(n) for w, n in TENS.items()})
+NUM_WORDS["hundred"] = "100"
+_ONES = {w: int(n) for w, n in NUM_WORDS.items() if int(n) < 10 and w != "zero"}
+_COMPOUND = re.compile(r"\b(" + "|".join(TENS) + r")[- ](" + "|".join(_ONES) + r")\b")
 
 
 def numbers_in(text):
+    """Every number in the text as digits: "2.5", "24" from "twenty-four", "1000" from "1,000"."""
     t = re.sub(r"@\w+|https?://\S+|\b\w+\.(?:com|ca|net|org)\b", " ", norm(text))
+    t = re.sub(r"(?<=\d),(?=\d{3}\b)", "", t)
+    t = _COMPOUND.sub(lambda m: str(TENS[m.group(1)] + _ONES[m.group(2)]), t)
     found = set(re.findall(r"\d+(?:\.\d+)?", t))
     found |= {n for w, n in NUM_WORDS.items() if re.search(rf"\b{w}\b", t)}
     return found
@@ -249,36 +274,54 @@ def check_numbers(plan, facts_text):
     return errs
 
 
-_STOP = set("""about above after again also always another around because been before being below
-between both could didn't does doing done down during each even every from further have having here
-into just like made make many more most much must near never next only other over same should since
-some such than that their them then there these they this those through under until very were what
-when where which while will with within without would your yours you're it's""".split())
+_STOP = set("""the and for you your our are was its all any can has had not but out own way who why how
+get got let per via off too yet his her him she they them their there here this that these those with from
+into onto over under above below about after again also just like more most much must near only other
+same some such than then very were what when where which while will would each every both been being
+have having does doing done make made many never since until upon within without""".split())
+
+# words that describe the carousel, not the property; they claim nothing
+STYLE_WORDS = set("""details detail inside outside close closer hand everything something nearby
+sleeps sleep guests guest min mins minute minutes hour hours drive walk walking""".split())
 
 
-def unbacked_words(plan, facts_text):
-    """Content words we print that never appear in the listing text. A NOTE, not a failure:
-    most are style ("details", "close at hand"); an invented amenity shows up here too."""
-    words = set(re.findall(r"[a-z]+", norm(facts_text)))
+def _words(text):
+    return re.findall(r"[a-z]+", norm(text))
 
-    def known(w):
-        return (w in words or w in NUM_WORDS or w.rstrip("s") in words or w + "s" in words
-                or w + "es" in words or w + "ly" in words
-                or (w.endswith("ing") and (w[:-3] in words or w[:-3] + "e" in words))
-                or (w.endswith("ed") and (w[:-2] in words or w[:-1] in words)))
-    host = set(re.findall(r"[a-z]+", norm(" ".join(s.get("cta", "") for s in plan["slides"]))))
-    out_ = {}
+
+def _covered(w, pool):
+    return (w in pool or w.rstrip("s") in pool or w + "s" in pool or w + "es" in pool or w + "ly" in pool
+            or (w.endswith("es") and w[:-2] in pool)
+            or (w.endswith("ing") and (w[:-3] in pool or w[:-3] + "e" in pool))
+            or (w.endswith("ed") and (w[:-2] in pool or w[:-1] in pool)))
+
+
+def check_coverage(plan, extra_ok=()):
+    """Every word we print must come from what we cited. A slide's words must be in that
+    slide's own claims (which the facts gate checks against the listing); the caption's
+    in caption_claims or any slide's claims. Plain style words, numbers (gated
+    separately), the host's CTA and plan-level "style_words" are exempt. This is what
+    stops "Private hot tub" riding on a claim of "pool"."""
+    ok = STYLE_WORDS | set(_words(" ".join(plan.get("style_words", [])))) | set(extra_ok)
+    host = set(_words(" ".join(s.get("cta", "") for s in plan["slides"])))
+
+    def missing(text, pool):
+        return sorted({w for w in _words(text) if len(w) >= 3 and w not in _STOP and w not in NUM_WORDS
+                       and not _covered(w, pool) and not _covered(w, ok)})
+    errs, every = [], set()
     for i, s in enumerate(plan["slides"], 1):
-        miss = sorted({w for w in re.findall(r"[a-z]+", norm(display_text(s)))
-                       if len(w) >= 4 and w not in _STOP and not known(w)})
-        if miss:
-            out_[sid(s, i)] = miss
+        pool = set(_words(" ".join(s.get("claims", []))))
+        every |= pool
+        if s["t"] == "review":
+            continue
+        m = missing(display_text(s), pool)
+        if m:
+            errs.append(f"slide {sid(s, i)}: words not backed by this slide's claims: {', '.join(m)}")
     cap = re.sub(r"@\w+", " ", plan.get("caption", ""))
-    miss = sorted({w for w in re.findall(r"[a-z]+", norm(cap))
-                   if len(w) >= 4 and w not in _STOP and w not in host and not known(w)})
-    if miss:
-        out_["caption"] = miss
-    return out_
+    m = [w for w in missing(cap, every | set(_words(" ".join(plan.get("caption_claims", []))))) if w not in host]
+    if m:
+        errs.append(f"caption: words not backed by caption_claims or slide claims: {', '.join(m)}")
+    return errs
 
 
 def check_review(slide, reviews):
@@ -319,7 +362,7 @@ def check_voice(plan):
             hits.append(f"{where}: em dash")
         if "–" in text:
             hits.append(f"{where}: en dash")
-        if re.search(r"(?<![\w&])#\w", text):
+        if re.search(r"(?<!\w)#\w", text):
             hits.append(f"{where}: hashtag")
         if _EMOJI.search(text):
             hits.append(f"{where}: emoji")
@@ -358,14 +401,18 @@ def ratio(a, b):
 
 
 def _extremes(reg):
-    px = sorted(getattr(reg, "get_flattened_data", reg.getdata)(), key=rel_lum)
-    return px[int(len(px) * 0.02)], px[max(0, int(len(px) * 0.98) - 1)]
+    """Darkest and brightest colour after averaging 4x4 CSS-px blocks: specks smaller
+    than a couple of pixels fade out, anything big enough to sit behind a letter stays."""
+    w, h = reg.size
+    reg = reg.resize((max(1, w // 8), max(1, h // 8)), Image.BOX)
+    px = getattr(reg, "get_flattened_data", reg.getdata)()
+    return min(px, key=rel_lum), max(px, key=rel_lum)
 
 
 def measure(bg2x, rects, rgb):
     """Worst-case contrast of `rgb` against the painted background (2x screenshot) under
     each text line, measured in short tiles so a small bright lamp or window behind one
-    word cannot hide in an average, and against BOTH the darkest and brightest 2% of each
+    word cannot hide in an average, and against BOTH the darkest and brightest block of each
     tile (mid-tone text can fail either way). Also returns how busy the background is.
     `rects`: one [x, y, w, h] in CSS px, or a list of them (one per line of text)."""
     if rects and isinstance(rects[0], (int, float)):
@@ -382,9 +429,7 @@ def measure(bg2x, rects, rgb):
                    int(min(W, x1 + pad) * 2), int(min(H, y + h + pad) * 2))
             if box[2] <= box[0] or box[3] <= box[1]:
                 continue
-            reg = bg2x.crop(box)
-            reg.thumbnail((48, 48), Image.BOX)
-            lo, hi = _extremes(reg)
+            lo, hi = _extremes(bg2x.crop(box))
             r = min(ratio(rgb, lo), ratio(rgb, hi))
             worst = r if worst is None else min(worst, r)
     ux0, uy0 = min(r[0] for r in rects), min(r[1] for r in rects)
@@ -712,6 +757,7 @@ def gate(plan, pdir):
                              and norm(s["quote"]).strip(" \"'") in norm(r.get("text")))
                 s["_by"] = attribution(match)
     problems += [f"numbers: {e}" for e in check_numbers(plan, facts)]
+    problems += [f"words: {e}" for e in check_coverage(plan, _words(B.get("name", "")))]
     problems += [f"voice: {h}" for h in check_voice(plan)]
     for s in plan["slides"]:
         specs = s["photos"] if s["t"] == "diptych" else ([s] if s.get("photo") else [])
@@ -724,8 +770,7 @@ def gate(plan, pdir):
         logo = usable_logo((pdir / plan["brand"]).parent / B["logo"])
         if logo is None:
             out(f"note: logo {B['logo']} has no transparent background; using a wordmark instead")
-    notes = unbacked_words(plan, facts)
-    return problems, {"B": B, "logo": logo, "notes": notes}
+    return problems, {"B": B, "logo": logo, "notes": plan.get("style_words", [])}
 
 
 def build(plan_path, check_only=False):
@@ -743,12 +788,9 @@ def build(plan_path, check_only=False):
             out(f"  - {p}")
         return 2
     if ctx["notes"]:
-        out("REVIEW THESE WORDS (not found in the listing text; fine if they are style, "
-            "fix them if they claim something):")
-        for k, v in ctx["notes"].items():
-            out(f"  {k}: {', '.join(v)}")
+        out(f"style words you declared as claiming nothing (show the host): {', '.join(ctx['notes'])}")
     if check_only:
-        out(f"CHECKS PASSED: {len(plan['slides'])} slides, facts, numbers, reviews, voice, photos, brand")
+        out(f"CHECKS PASSED: {len(plan['slides'])} slides, facts, numbers, words, reviews, voice, photos, brand")
         return 0
     B, logo = ctx["B"], ctx["logo"]
 
@@ -825,7 +867,7 @@ def build(plan_path, check_only=False):
     for p in list(work.glob("_r*")) + list(work.glob("photo_*")) + list(work.glob("logo_*")):
         p.unlink()
     (work / "report.json").write_text(json.dumps({"plan": plan_path.name, "passed": ok_all, "slides": report,
-                                                  "words_not_in_listing": ctx["notes"]},
+                                                  "style_words": ctx["notes"]},
                                                  indent=1, ensure_ascii=False), encoding="utf-8")
     final_dir = pdir / "runs" / f"{plan_path.stem}-{stamp}{'' if ok_all else '-FAILED'}"
     work.rename(final_dir)

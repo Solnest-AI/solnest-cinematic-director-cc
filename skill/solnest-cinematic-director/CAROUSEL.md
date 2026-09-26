@@ -140,6 +140,13 @@ The photos and the text are.
   seasonal. `cover`, `room`, `split`, `list` and `last` need at least one claim; `photo`
   and `diptych` may use `[]` when the words claim nothing ("The details"). A phrase only
   counts where the listing states it, not where it says "no hot tub".
+- **Every word on a slide comes from that slide's claims.** "Private hot tub" needs a
+  claim containing private, hot and tub, and that claim must be in the listing. Plain
+  style words need no claim ("details", "inside", "close at hand", "sleeps", "min").
+  If a word truly claims nothing (a label like "Out back"), either rephrase it from the
+  listing or add it to the plan's `"style_words": ["back"]`. Those are shown to the host,
+  so never put a feature there. Caption words come from `caption_claims` or any slide's
+  claims.
 - **Every number must be in the listing.** Sleeps, bedrooms, baths, minutes, floors:
   digits or words ("four" matches "4"). The check refuses any number the listing does not
   contain. Only the host's own CTA is exempt.
@@ -217,10 +224,10 @@ It checks the plan shape, brand, facts, numbers, review quotes, voice and photo 
 Fix every line it prints. **Never make a check pass by deleting a claim while keeping the
 words.** Change the words to what the listing actually says.
 
-It also prints **REVIEW THESE WORDS**: words on your slides or caption that never appear
-in the listing text. Most are style ("close at hand", "the details") and can stay. Any
-word that names a thing or a feature ("private", "beach", "ski-in") is an invention until
-the listing says it: change it.
+A **words** failure names the exact words a slide prints that none of its claims contain.
+Fix it by citing the listing phrase that says it (add the claim), or by rewording the
+slide to what the listing says. On the two test listings every words failure was a
+real gap ("Out back" was never in the listing).
 
 ## Step 5 - Render
 

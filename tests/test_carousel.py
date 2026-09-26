@@ -144,15 +144,48 @@ class DisplayedWords(unittest.TestCase):
         facts = "No hot tub in the unit. The building has a shared hot tub."
         self.assertEqual(carousel.check_facts(self.plan("Hot tub", ["hot tub"]), facts), {})
 
-    def test_unbacked_words_are_reported(self):
-        words = carousel.unbacked_words(self.plan("Private beach access", ["beach"]), "Walk to the beach parks.")
-        self.assertIn("private", words.get("01", []))
-        self.assertIn("access", words.get("01", []))
-        self.assertNotIn("beach", words.get("01", []))
+    def test_words_must_come_from_this_slides_claims(self):
+        errs = carousel.check_coverage(self.plan("Private hot tub", ["pool"]))
+        self.assertTrue(errs and "private" in errs[0] and "tub" in errs[0], errs)
+
+    def test_style_words_and_units_need_no_claim(self):
+        p = {"slides": [{"t": "diptych", "label": "Inside", "title": "The details", "claims": [],
+                         "photos": [{"photo": "01"}, {"photo": "02"}]},
+                        {"t": "list", "title": "Close at hand", "rows": [["Pandosy", "5 min"], ["Downtown", "10 min"]],
+                         "claims": ["Pandosy in 5", "downtown in 10"]}],
+             "caption": "x", "caption_claims": []}
+        self.assertEqual(carousel.check_coverage(p), [])
+
+    def test_declared_style_words_pass_but_are_reported(self):
+        p = self.plan("Out back", ["hot tub"], caption="")
+        self.assertTrue(carousel.check_coverage(p))
+        p["style_words"] = ["back"]
+        self.assertEqual(carousel.check_coverage(p), [])
+
+    def test_caption_words_backed_by_caption_or_slide_claims(self):
+        p = self.plan("Two golf simulators", ["two golf simulators"], caption="Two golf simulators and a private beach.")
+        errs = carousel.check_coverage(p)
+        self.assertTrue(any("caption" in e and "beach" in e and "private" in e for e in errs), errs)
+        self.assertFalse(any("golf" in e for e in errs))
+
+    def test_negation_after_the_phrase(self):
+        miss = carousel.check_facts(self.plan("Hot tub", ["hot tub"]), "Hot tub is not available this season.")
+        self.assertEqual(miss, {"01": ["hot tub"]})
+
+    def test_negation_does_not_cross_lines(self):
+        self.assertEqual(carousel.check_facts(self.plan("Hot tub", ["hot tub"]), "No smoking\nHot tub\nSauna"), {})
+
+    def test_compound_numbers_and_thousands(self):
+        facts = "Twenty-four guests. 1,000 square feet."
+        p = self.plan("24 guests, 1000 square feet", ["guests"])
+        self.assertEqual(carousel.check_numbers(p, facts), [])
+        p = self.plan("Twenty-four guests", ["guests"])
+        self.assertEqual(carousel.check_numbers(p, "24 guests"), [])
 
     def test_hashtag_after_punctuation_caught(self):
-        p = self.plan("Hi", [], caption="Book now,#beach")
-        self.assertTrue(any("hashtag" in h for h in carousel.check_voice(p)))
+        for cap in ("Book now,#beach", "Book now&#beach"):
+            p = self.plan("Hi", [], caption=cap)
+            self.assertTrue(any("hashtag" in h for h in carousel.check_voice(p)), cap)
 
 
 @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
@@ -238,6 +271,18 @@ class Contrast(unittest.TestCase):
         im.paste((255, 255, 255), (600, 600, 660, 660))    # 30x30 CSS px inside an 800x300 block
         r, _ = carousel.measure(im, [(100, 250, 800, 60), (100, 310, 800, 60)], (255, 255, 255))
         self.assertLess(r, carousel.MIN_RATIO)
+
+    def test_bright_patch_in_a_tall_line_is_caught(self):
+        im = Image.new("RGB", (2160, 2700), (0, 0, 0))
+        im.paste((255, 255, 255), (700, 700, 730, 730))    # 15x15 CSS px under a 100px-tall line
+        r, _ = carousel.measure(im, [(100, 300, 800, 100)], (255, 255, 255))
+        self.assertLess(r, carousel.MIN_RATIO)
+
+    def test_a_tiny_speck_is_tolerated(self):
+        im = Image.new("RGB", (2160, 2700), (0, 0, 0))
+        im.paste((255, 255, 255), (700, 700, 702, 702))    # 1x1 CSS px, JPEG-noise size
+        r, _ = carousel.measure(im, [(100, 300, 800, 100)], (255, 255, 255))
+        self.assertGreater(r, carousel.MIN_RATIO)
 
     def test_flat_photo_is_not_crushed_by_levels(self):
         im = Image.new("RGB", (80, 80), (100, 120, 140))

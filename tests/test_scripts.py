@@ -145,3 +145,13 @@ class AsciiOnlyOutput(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SkillText(unittest.TestCase):
+    """Claude Code substitutes $0, $1, ... in SKILL.md with the invocation's arguments, so a
+    price like "$2.28" or awk's "$0" turns into a random word when the skill is called with
+    text. Keep every dollar-digit pair out of SKILL.md."""
+    def test_no_dollar_digit_in_skill_md(self):
+        import re
+        text = (SCRIPTS.parent / "SKILL.md").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r".{0,30}\$\d.{0,10}", text), [])

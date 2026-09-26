@@ -3,7 +3,7 @@ name: solnest-cinematic-director
 description: >-
   Solnest AI's listing content director for short-term rentals. Turns an
   Airbnb/VRBO/Zillow link or a folder of property photos into ONE cinematic 25-30 second
-  walkthrough video (Veo 3.1 on KIE, about $2, assembled locally with ffmpeg) OR an
+  walkthrough video (Veo 3.1 on KIE, about USD 2, assembled locally with ffmpeg) OR an
   on-brand 7-10 slide Instagram carousel (real listing photos graded as one shoot, the
   host's own colours, fonts and logo from their website, a verbatim 5-star guest review,
   every claim checked against the listing, free). Use this skill whenever the user wants a
@@ -46,7 +46,7 @@ end on a shot that continues the last one.**
 | Crossfade the joins in ffmpeg | Generated "bridge" and "walk out the window" clips lost to a free 0.6s crossfade every time. |
 | Look at the photos yourself | The listing scrape labelled every room wrong on the Langley farm, confidently. |
 | Crop each photo by hand | Blind centre crops cut the subject out of the room. |
-| Veo 3.1 on KIE | $0.325 flat per clip at 4, 6 or 8s, 1080p, about 2-3 minutes. 28% cheaper than Kling for the same beats, and pay-as-you-go with no subscription. |
+| Veo 3.1 on KIE | USD 0.325 flat per clip at 4, 6 or 8s, 1080p, about 2-3 minutes. 28% cheaper than Kling for the same beats, and pay-as-you-go with no subscription. |
 
 ## What this needs
 
@@ -56,7 +56,7 @@ end on a shot that continues the last one.**
 2. **Python 3.9+**. No packages to install. Every script is standard library.
    Use whichever command works on this machine: `python3` (Mac/Linux), or `py -3` /
    `python` on Windows.
-3. **A KIE API key** with credits (kie.ai, pay as you go, $5 minimum). The scripts look
+3. **A KIE API key** with credits (kie.ai, pay as you go, USD 5 minimum). The scripts look
    for `KIE_API_KEY` in the environment, then in `.env` files in this skill's folder,
    the current folder, and the home folder. If it is missing, tell the user exactly this:
    "Put `KIE_API_KEY=your_key` on its own line in `<this skill's folder>/.env`." Never
@@ -64,6 +64,8 @@ end on a shot that continues the last one.**
 4. **Firecrawl MCP** to read a listing URL (not needed for a folder of photos).
 
 In every command below, `SCRIPTS` means this skill's `scripts/` folder (absolute path).
+(Prices here are written as "USD 2" on purpose: Claude Code swaps a dollar sign followed by a
+digit in a SKILL.md for the words the skill was called with, which garbles dollar amounts.)
 
 ## The one rule on stopping
 
@@ -78,7 +80,7 @@ stop and ask before spending anything.
 2. **What it is for** (ask once, unless they said):
    - **Instagram / Reels / TikTok** -> 9:16
    - **Sending to an owner or prospect, a website, an email, YouTube** -> 16:9
-   - Both -> two runs, about $4. Framing is baked into each clip, so never pad one
+   - Both -> two runs, about USD 4. Framing is baked into each clip, so never pad one
      shape into the other.
 3. Preflight, before anything costs money:
 
@@ -100,7 +102,7 @@ page with a browser User-Agent and pull every photo URL for that listing id:
 
 ```bash
 curl -fsSL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" "https://www.airbnb.com/rooms/<ID>?locale=en" -o source/_page.html
-grep -oE 'https://a0\.muscache\.com/im/pictures/[A-Za-z0-9/_-]*Hosting-<ID>/original/[A-Za-z0-9-]+\.(jpeg|jpg|png|webp)' source/_page.html | awk '!seen[$0]++' > source/_urls.txt
+grep -oE 'https://a0\.muscache\.com/im/pictures/[A-Za-z0-9/_-]*Hosting-<ID>/original/[A-Za-z0-9-]+\.(jpeg|jpg|png|webp)' source/_page.html | python3 -c "import sys; print(''.join(dict.fromkeys(sys.stdin)), end='')" > source/_urls.txt
 ```
 
 - If the saved page is tiny and says "Redirecting to www.airbnb.ca" (or another country),
@@ -264,8 +266,8 @@ listing-walkthroughs/<property-slug>/
 
 ## Cost and time
 
-- 65 credits ($0.325) per clip. 6 beats + closing = 455 credits (about $2.28);
-  5 beats + closing = 390 credits (about $1.95).
+- 65 credits (USD 0.325) per clip. 6 beats + closing = 455 credits (about USD 2.28);
+  5 beats + closing = 390 credits (about USD 1.95).
 - Failed generations can still bill. `_run.json` records the real spend.
 - 2-3 minutes of generation in parallel, a few seconds to assemble.
 - Generated media on KIE expires after about 14 days. The script downloads it at once.

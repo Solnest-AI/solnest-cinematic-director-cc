@@ -1,19 +1,17 @@
 ---
 name: solnest-cinematic-director
 description: >-
-  Solnest AI's cinematic video director turns a short-term-rental listing (an
-  Airbnb/VRBO/Zillow URL or a folder of property photos) into ONE polished 25-30 second
-  cinematic walkthrough video, end to end, on your own machine, for about $2 of KIE
-  credits. Use this skill whenever the user wants a listing video, property walkthrough,
-  STR reel, real estate video, "make a video for this listing", "make me a Solnest
-  video", "cinematic walkthrough", "turn this Airbnb into a video", "Solnest reel",
-  "direct this listing", a video to send an owner or prospect, or any request to animate
-  property photos into a moving tour. Also trigger when the user pastes a listing link or
-  a photo folder and asks for video or marketing content, or wants a 9:16 reel or a 16:9
-  website video of a property. It pulls the photos, curates 5-6 beats by eye, crops each
-  one on purpose, generates one Veo 3.1 clip per beat on KIE from a single anchor frame,
-  adds a seamless closing shot, and assembles everything locally with ffmpeg into a
-  finished MP4.
+  Solnest AI's listing content director for short-term rentals. Turns an
+  Airbnb/VRBO/Zillow link or a folder of property photos into ONE cinematic 25-30 second
+  walkthrough video (Veo 3.1 on KIE, about $2, assembled locally with ffmpeg) OR an
+  on-brand 7-10 slide Instagram carousel (real listing photos graded as one shoot, the
+  host's own colours, fonts and logo from their website, a verbatim 5-star guest review,
+  every claim checked against the listing, free). Use this skill whenever the user wants a
+  listing video, property walkthrough, STR reel, "make a video for this listing", "make me
+  a Solnest video", "cinematic walkthrough", an Instagram carousel, "make a carousel for
+  this listing", carousel slides or a carousel post for a property, a 9:16 reel or a 16:9
+  website video, or pastes a listing link or a photo folder and asks for social or
+  marketing content. Carousels follow CAROUSEL.md in this folder; videos follow this file.
 allowed-tools: [Read, Write, Bash, Glob, Grep, AskUserQuestion, mcp__firecrawl__firecrawl_scrape, mcp__firecrawl__firecrawl_extract]
 ---
 
@@ -25,6 +23,14 @@ listing and deliver one finished walkthrough video, start to finish.
 Everything here was measured on real listings (Sun Peaks cabin, Langley 66-acre farm,
 2026-09-20/21) before it became a rule. Follow the rules even when another approach
 looks clever. The clever approaches are the ones that failed.
+
+## Two modes: video or carousel
+
+- **Video** (a reel, walkthrough, Veo clip): follow this file from Step 0.
+- **Carousel** (Instagram slides, a carousel post): read `CAROUSEL.md` in this skill's
+  folder and follow it instead. It uses its own scripts (`listing_pull.py`,
+  `brand_pull.py`, `carousel.py`, optional `photo_fix.py`) and needs no API key.
+- Both, or unclear: ask once, "A video, a carousel, or both?"
 
 ## The framework in one breath
 

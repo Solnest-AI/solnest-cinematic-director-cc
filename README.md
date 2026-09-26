@@ -1,10 +1,15 @@
 # Solnest Cinematic Director (Claude Code edition)
 
-Paste a listing link. Get back a 25 to 30 second cinematic walkthrough video of the
-property, ready for Instagram or to send to an owner.
+Paste a listing link. Get back either:
 
-About **$2 per video** in KIE credits. No subscription, no Descript, no watermark. The
-clips are generated on KIE (Veo 3.1) and stitched on your own machine with ffmpeg.
+- a **25 to 30 second cinematic walkthrough video** of the property, ready for Instagram
+  or to send to an owner (about **$2** in KIE credits, generated on KIE Veo 3.1 and
+  stitched on your own machine with ffmpeg), or
+- an **on-brand Instagram carousel**: 7 to 10 slides built from the listing's real photos,
+  in your own colours, fonts and logo (read from your website), with a real 5-star guest
+  review and every claim checked against your listing. **Free**, nothing is generated.
+
+No subscription, no Descript, no watermark.
 
 Built by Ryan Lefebvre / **Solnest AI**. Free to use.
 
@@ -25,7 +30,8 @@ Claude does the rest and tells you if anything is missing.
 | **KIE API key** ([kie.ai](https://kie.ai/api-key)) | Generates the video clips | Pay as you go, $5 minimum, about $2 per video |
 | **ffmpeg** | Joins the clips on your machine | Free |
 | **Python 3.9+** | Runs the helper scripts (no packages to install) | Free |
-| Firecrawl MCP (optional) | Reads non-Airbnb listing pages | Free plan is fine |
+| Firecrawl MCP (optional) | Reads non-Airbnb listing pages for videos | Free plan is fine |
+| **Playwright + Pillow** (carousels only) | Reads the listing and your site, renders the slides | Free, about 200 MB once |
 
 Your KIE key goes in a file called `.env` inside the skill folder, one line:
 `KIE_API_KEY=your_key`. **Never paste a key into the chat.**
@@ -47,6 +53,27 @@ It asks what the video is for (Instagram = vertical 9:16, owner or website = 16:
 5. shows you the cost, then generates the clips in parallel (2 to 3 minutes),
 6. adds a closing shot that continues the last clip seamlessly,
 7. stitches everything into one MP4 in `listing-walkthroughs/<property>/final/`.
+
+### Carousels
+
+```
+make me a carousel for https://www.airbnb.com/rooms/...
+```
+
+It asks for your website and what the last slide should say, then:
+
+1. pulls every photo at full size, the listing text and the guest reviews (no API key),
+2. reads your colours, fonts and logo from your website,
+3. looks at the photos and plans 8 or 9 slides: cover, the thing that sets you apart,
+   amenities, details, bedrooms, a real guest quote, location, and a closing slide,
+4. checks every word against your listing and every quote against the real review
+   before rendering anything,
+5. renders the slides, measuring text contrast on the actual pixels,
+6. shows you a preview and the caption. Say yes, or tell it what to change.
+
+Your photos are never AI-edited unless you ask. If you do, it uses the one editor that
+added nothing in testing (Seedream 5.0 Pro, about $0.07 a photo), shows you the before
+and after, and waits for your yes.
 
 ## The recipe, and why
 
@@ -105,8 +132,11 @@ Follow these in order. Stop and tell the user plainly if a step fails.
 6. **Verify:** run `python3 <skills folder>/solnest-cinematic-director/scripts/kie.py --balance`
    (Windows: `py -3 ...`). It must print the balance. Under 455 credits means they need to
    top up before their first 30 second video.
-7. Tell the user to **restart Claude Code**, then say
-   `make me a Solnest video for <listing url>`.
+7. **Carousels (optional):** run `python3 -m pip install playwright pillow` and
+   `python3 -m playwright install chromium` (Windows: `py -3 -m ...`). Check with
+   `python3 -c "import playwright, PIL"`. Skip this if they only want videos.
+8. Tell the user to **restart Claude Code**, then say
+   `make me a Solnest video for <listing url>` or `make me a carousel for <listing url>`.
 
 ## Update
 
@@ -120,8 +150,9 @@ if you replaced the folder.
 python3 -m unittest discover -s tests -v
 ```
 
-Offline tests, no network and no credits. The scripts are Python standard library plus
-ffmpeg, and print ASCII only so they cannot crash a Windows console.
+Offline tests, no network and no credits. The video scripts are Python standard library
+plus ffmpeg; the carousel scripts add Playwright and Pillow (their tests skip without
+Pillow). Everything prints ASCII only so it cannot crash a Windows console.
 
 ---
 

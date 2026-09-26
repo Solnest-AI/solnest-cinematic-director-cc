@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.1.0 (2026-09-26)
+
+Carousel mode. The summit design was carousel + video; this adds the carousel half.
+
+- `CAROUSEL.md`: listing link in, 7 to 10 slide on-brand Instagram carousel out. Free.
+- `listing_pull.py`: every photo at 2560px, the full listing text and the guest reviews,
+  via a headless browser (a plain page fetch has no review text). Folder mode for photos.
+- `brand_pull.py`: colours by painted area, fonts and transparent logo cut-outs from the
+  host's own website.
+- `carousel.py`: the v3 design (one house grade, cover/room/photo/split/diptych/list/last)
+  plus a new review slide. Gates before rendering: facts, verbatim 5-star review quotes,
+  voice, plan shape. Contrast measured on the painted pixels while rendering.
+- `photo_fix.py`: optional Seedream 5.0 Pro polish with a side-by-side and a plain yes.
+- Bundled SIL OFL fonts: Cormorant Garamond, Playfair Display, Montserrat, Inter.
+- Video mode unchanged.
+
 ## 2.0.0 (2026-09-25)
 
 Rebuilt on the recipe measured in the Sep 20-21 test runs (Langley farm, Sun Peaks cabin).

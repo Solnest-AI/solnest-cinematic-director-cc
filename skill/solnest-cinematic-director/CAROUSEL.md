@@ -237,6 +237,8 @@ Open `preview.jpg`, then every slide at full size. Check:
 - the review and list slides are not back to back;
 - the set reads as one shoot.
 
+If the report shows `"mode": "panel"` on the cover or the last slide, the text fell back to a paper card, which reads mid-market. Try `"prefer": "bottom"` (or `"top"`), a different `focal`, or a calmer photo.
+
 Fix the plan and render again. Each run gets its own folder, so nothing is overwritten.
 
 ## Step 7 - Show the host

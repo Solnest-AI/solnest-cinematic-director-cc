@@ -548,7 +548,9 @@ def choose_photo_layout(R, s, B, img, logo):
             tried.append((a, "clean", hexc, r, e))
             if r >= MIN_RATIO and e <= BUSY_EDGE:
                 return a, hexc, "clean", 0, r, e, len(tried)
-    for alpha in ((0.25, 0.4, 0.6) if s["t"] == "last" else (0.25, 0.4)):  # 2) light gradient
+    # 2) light gradient; covers and end cards may take a deeper fade (a natural vignette)
+    # before the paper card, which reads mid-market on the two slides that matter most
+    for alpha in ((0.25, 0.4, 0.6) if s["t"] in ("cover", "last") else (0.25, 0.4)):
         for a in order:
             rect, bg = R.shot(photo_slide(s, B, img, a, B["on_photo"], "scrim", alpha, True, logo))
             r, e = measure(bg, rect, light)

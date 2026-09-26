@@ -141,8 +141,13 @@ The photos and the text are.
   and `diptych` may use `[]` when the words claim nothing ("The details"). A phrase only
   counts where the listing states it, not where it says "no hot tub".
 - **Every word on a slide comes from that slide's claims.** "Private hot tub" needs a
-  claim containing private, hot and tub, and that claim must be in the listing. Plain
-  style words need no claim ("details", "inside", "close at hand", "sleeps", "min").
+  claim containing private, hot and tub, and that claim must be in the listing. Words
+  printed side by side must sit together in ONE claim: "Private pool" cannot borrow
+  "private" from "Private balcony" and "pool" from "Shared pool". Units and travel mode
+  are words too: "5 min" needs a claim with minutes ("about 5 minutes"), "Walk" a claim
+  with walk. Cite whole listing lines. A negative claim ("No hot tub") only backs words
+  that also say no. Plain style words need no claim ("details", "inside", "close at
+  hand", "sleeps", "guest review"), nor do state and province codes ("BC").
   If a word truly claims nothing (a label like "Out back"), either rephrase it from the
   listing or add it to the plan's `"style_words": ["back"]`. Those are shown to the host,
   so never put a feature there. Caption words come from `caption_claims` or any slide's
@@ -178,9 +183,10 @@ The photos and the text are.
      "claims": ["Kelowna", "Nine floors above Okanagan Lake"]},
     {"t": "room", "photo": "35", "label": "Downstairs", "title": "Two golf simulators",
      "claims": ["two golf simulators", "resort floor downstairs"]},
-    {"t": "split", "photo": "37", "label": "The resort floor", "title": "Pool, hot tubs, sauna, cold plunge",
-     "body": "Shared with the building: a seasonal pool, two hot tubs, a putting green and a gym.",
-     "claims": ["Shared outdoor pool", "available seasonally", "two hot tubs", "putting green"]},
+    {"t": "split", "photo": "37", "label": "The resort floor", "title": "An indoor putting green",
+     "body": "Shared with the building: a seasonal pool, two hot tubs and a gym.",
+     "claims": ["resort floor is downstairs in your own building", "indoor putting green",
+                "Shared outdoor pool - available seasonally", "two hot tubs", "gym"]},
     {"t": "photo", "photo": "08", "label": "The balcony, over the pool", "claims": ["Private balcony over the pool"]},
     {"t": "diptych", "label": "Inside", "title": "The details",
      "photos": [{"photo": "22", "focal": [0.5, 0.6]}, {"photo": "10"}], "claims": []},
@@ -188,8 +194,10 @@ The photos and the text are.
     {"t": "room", "photo": "16", "label": "Sleeps 4", "title": "Two queens, two full baths",
      "claims": ["Two queen beds", "two full baths"]},
     {"t": "list", "label": "Where you are", "title": "Kelowna, close at hand",
-     "rows": [["Beach parks", "Walk"], ["Pandosy", "5 min"], ["Downtown", "10 min"]],
-     "claims": ["Walk to Boyce-Gyro and Rotary beach parks", "Pandosy in 5", "downtown in 10"]},
+     "rows": [["Beach parks", "Walk"], ["Pandosy Village", "5 min"], ["Downtown Kelowna", "10 min"]],
+     "claims": ["Kelowna", "Walk to Boyce-Gyro and Rotary beach parks",
+                "Pandosy Village cafés, patios and boutiques, about 5 minutes",
+                "Downtown Kelowna and the waterfront promenade, about 10 minutes"]},
     {"t": "last", "photo": "05", "night": true, "line": "Kelowna, BC · Sleeps 4 · Dogs welcome",
      "cta": "Save this for your next trip", "claims": ["Kelowna", "Dogs welcome"]}
   ],

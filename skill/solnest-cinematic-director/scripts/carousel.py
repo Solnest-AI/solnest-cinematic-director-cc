@@ -254,10 +254,11 @@ def numbers_in(text):
 
 
 def display_text(s):
-    """Our words on a slide (not the host's CTA, not the guest's quote)."""
+    """Our words on a slide (not the host's CTA, not the guest's quote), one field or
+    row per line so words from different lines are never read as a pair."""
     parts = [s.get(f) for f in ("label", "title", "body", "line")]
     parts += [f"{k} {v}" for k, v in s.get("rows") or []]
-    return " ".join(str(p) for p in parts if p)
+    return "\n".join(str(p) for p in parts if p)
 
 
 def check_numbers(plan, facts_text):
@@ -278,15 +279,27 @@ _STOP = set("""the and for you your our are was its all any can has had not but 
 get got let per via off too yet his her him she they them their there here this that these those with from
 into onto over under above below about after again also just like more most much must near only other
 same some such than then very were what when where which while will would each every both been being
-have having does doing done make made many never since until upon within without""".split())
+have having does doing done make made many never since until upon within without plus
+an at in on of to by or is it as be we us my up so do no if am""".split())
 
 # words that describe the carousel, not the property; they claim nothing
 STYLE_WORDS = set("""details detail inside outside close closer hand everything something nearby
-sleeps sleep guests guest min mins minute minutes hour hours drive walk walking""".split())
+sleeps sleep guests guest review reviews star stars""".split())
+# two-letter state and province codes ("Kelowna, BC") are places, not amenities
+REGION_CODES = set("""al ak az ar ca co ct de fl ga hi id il ia ks ky la me md ma mi mn ms mo mt ne nv nh nj
+nm ny nc nd oh ok pa ri sc sd tn tx ut vt va wa wv wi wy dc ab bc mb nb nl ns nt nu pe qc sk yt""".split())
+UNIT_ALIAS = {"min": "minutes", "mins": "minutes", "minute": "minutes", "hr": "hours", "hrs": "hours", "hour": "hours"}
+_NEGATOR = re.compile(r"\b(no|not|without|never|none|unavailable|isn't|aren't|don't|doesn't)\b")
+_PHRASE_SPLIT = re.compile(r"[,.;:!?\u00b7\n+/&()]|\band\b|\bor\b|\bplus\b|\bwith\b")
+
+
+def _tokens(text):
+    """Lower-case word and number tokens, units unified (min/mins -> minutes)."""
+    return [UNIT_ALIAS.get(w, w) for w in re.findall(r"[a-z]+|\d+(?:\.\d+)?", norm(text))]
 
 
 def _words(text):
-    return re.findall(r"[a-z]+", norm(text))
+    return [w for w in _tokens(text) if not w[0].isdigit()]
 
 
 def _covered(w, pool):
@@ -297,30 +310,55 @@ def _covered(w, pool):
 
 
 def check_coverage(plan, extra_ok=()):
-    """Every word we print must come from what we cited. A slide's words must be in that
-    slide's own claims (which the facts gate checks against the listing); the caption's
-    in caption_claims or any slide's claims. Plain style words, numbers (gated
-    separately), the host's CTA and plan-level "style_words" are exempt. This is what
-    stops "Private hot tub" riding on a claim of "pool"."""
-    ok = STYLE_WORDS | set(_words(" ".join(plan.get("style_words", [])))) | set(extra_ok)
-    host = set(_words(" ".join(s.get("cta", "") for s in plan["slides"])))
+    """Every word we print must come from what we cited, in the same combination.
+      * each word on a slide must be in that slide's own claims (the facts gate checks
+        those against the listing); the caption's in caption_claims or any slide's claims
+      * two content words printed side by side ("private pool") must appear together in
+        ONE claim, so words cannot be borrowed from "private balcony" + "shared pool"
+      * units and travel mode ("5 min walk") are words like any other: cite them
+      * a negative claim ("No hot tub") cannot back words that do not say so
+    Exempt: grammar words, plain style words, region codes, numbers (gated separately),
+    the host's CTA, the verified review quote, and plan-level "style_words"."""
+    ok = (STYLE_WORDS | REGION_CODES | set(_words(" ".join(plan.get("style_words", [])))) | set(extra_ok)
+          | set(_words(" ".join(s.get("cta", "") for s in plan["slides"]))))
 
-    def missing(text, pool):
-        return sorted({w for w in _words(text) if len(w) >= 3 and w not in _STOP and w not in NUM_WORDS
-                       and not _covered(w, pool) and not _covered(w, ok)})
-    errs, every = [], set()
+    def exempt(w):
+        return w[0].isdigit() or len(w) < 2 or w in _STOP or w in NUM_WORDS or _covered(w, ok)
+
+    def problems(text, claims, own=None):
+        sets = [set(_words(c)) for c in claims]
+        pool = set().union(*sets) if sets else set()
+        miss = sorted({w for w in _words(text) if not exempt(w) and not _covered(w, pool)})
+        pairs = []
+        for phrase in _PHRASE_SPLIT.split(norm_lines(text)):  # keep line breaks: fields never pair
+            toks = _tokens(phrase)
+            for a, b in zip(toks, toks[1:]):
+                if exempt(a) or exempt(b) or a in miss or b in miss:
+                    continue
+                if not any(_covered(a, c) and _covered(b, c) for c in sets):
+                    pairs.append(f"{a} {b}")
+        neg = [c for c in (claims if own is None else own) if _NEGATOR.search(norm(c))]
+        neg = neg if neg and text.strip() and not _NEGATOR.search(norm(text)) else []
+        return miss, sorted(set(pairs)), neg
+
+    def report(where, miss, pairs, neg):
+        msg = []
+        if miss:
+            msg.append(f"words not backed by its claims: {', '.join(miss)}")
+        if pairs:
+            msg.append(f"word pairs no single claim contains: {', '.join(pairs)}")
+        if neg:
+            msg.append(f"negative claim cannot back positive words: {', '.join(neg)}")
+        return [f"{where}: " + "; ".join(msg)] if msg else []
+
+    errs, every = [], []
     for i, s in enumerate(plan["slides"], 1):
-        pool = set(_words(" ".join(s.get("claims", []))))
-        every |= pool
-        if s["t"] == "review":
-            continue
-        m = missing(display_text(s), pool)
-        if m:
-            errs.append(f"slide {sid(s, i)}: words not backed by this slide's claims: {', '.join(m)}")
+        claims = list(s.get("claims", []))
+        every += claims
+        errs += report(f"slide {sid(s, i)}", *problems(display_text(s), claims))
     cap = re.sub(r"@\w+", " ", plan.get("caption", ""))
-    m = [w for w in missing(cap, every | set(_words(" ".join(plan.get("caption_claims", []))))) if w not in host]
-    if m:
-        errs.append(f"caption: words not backed by caption_claims or slide claims: {', '.join(m)}")
+    own = list(plan.get("caption_claims", []))
+    errs += report("caption", *problems(cap, own + every, own))
     return errs
 
 

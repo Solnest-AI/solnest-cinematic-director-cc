@@ -152,7 +152,7 @@ class DisplayedWords(unittest.TestCase):
         p = {"slides": [{"t": "diptych", "label": "Inside", "title": "The details", "claims": [],
                          "photos": [{"photo": "01"}, {"photo": "02"}]},
                         {"t": "list", "title": "Close at hand", "rows": [["Pandosy", "5 min"], ["Downtown", "10 min"]],
-                         "claims": ["Pandosy in 5", "downtown in 10"]}],
+                         "claims": ["Pandosy Village, about 5 minutes", "Downtown Kelowna, about 10 minutes"]}],
              "caption": "x", "caption_claims": []}
         self.assertEqual(carousel.check_coverage(p), [])
 
@@ -167,6 +167,47 @@ class DisplayedWords(unittest.TestCase):
         errs = carousel.check_coverage(p)
         self.assertTrue(any("caption" in e and "beach" in e and "private" in e for e in errs), errs)
         self.assertFalse(any("golf" in e for e in errs))
+
+    def test_recombined_words_fail(self):
+        errs = carousel.check_coverage(self.plan("Private pool", ["Private balcony", "shared pool"], caption=""))
+        self.assertTrue(errs and "private pool" in errs[0], errs)
+
+    def test_units_and_travel_mode_must_be_cited(self):
+        errs = carousel.check_coverage(self.plan("Pool 5 min walk", ["Pool is 5 hours drive away"], caption=""))
+        self.assertTrue(errs and "min" in errs[0] and "walk" in errs[0], errs)
+
+    def test_negative_claim_cannot_back_positive_copy(self):
+        errs = carousel.check_coverage(self.plan("Hot tub", ["No hot tub"], caption=""))
+        self.assertTrue(errs and "negative" in errs[0], errs)
+        self.assertEqual(carousel.check_coverage(self.plan("No stairs", ["no stairs"], caption="")), [])
+
+    def test_review_label_is_checked(self):
+        p = {"slides": [{"t": "review", "label": "Private hot tub", "quote": "We enjoyed our stay.", "by": "Alex"}],
+             "caption": "", "caption_claims": []}
+        errs = carousel.check_coverage(p)
+        self.assertTrue(errs and "private" in errs[0], errs)
+        p["slides"][0]["label"] = "Guest review"
+        self.assertEqual(carousel.check_coverage(p), [])
+
+    def test_two_letter_amenities_need_a_claim_but_region_codes_do_not(self):
+        errs = carousel.check_coverage(self.plan("AC and TV", ["Pool"], caption=""))
+        self.assertTrue(errs and "ac" in errs[0] and "tv" in errs[0], errs)
+        self.assertEqual(carousel.check_coverage(self.plan("Kelowna, BC", ["Kelowna"], caption="")), [])
+
+    def test_words_on_different_lines_never_pair(self):
+        p = {"slides": [{"t": "split", "photo": "01", "label": "The resort floor", "title": "An indoor putting green",
+                         "body": "Shared with the building.", "claims": ["resort floor", "indoor putting green",
+                                                                        "Shared with the building"]}],
+             "caption": "", "caption_claims": []}
+        self.assertEqual(carousel.check_coverage(p), [])
+
+    def test_honest_paraphrases_still_pass(self):
+        ok = [("Log beams and a stone fireplace", ["Vaulted log-beam ceilings + stone fireplace"]),
+              ("A private hot tub", ["Private forest-edge hot tub"]),
+              ("Two queens, two full baths", ["Two queen beds", "two full baths"]),
+              ("Four bedrooms and a bunk room", ["4 real bedrooms plus a basement bunk room"])]
+        for title, claims in ok:
+            self.assertEqual(carousel.check_coverage(self.plan(title, claims, caption="")), [], title)
 
     def test_negation_after_the_phrase(self):
         miss = carousel.check_facts(self.plan("Hot tub", ["hot tub"]), "Hot tub is not available this season.")

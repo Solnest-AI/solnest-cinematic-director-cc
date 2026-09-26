@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Shared ffmpeg helpers for the Solnest Cinematic Director. Python stdlib only.
+Output is ASCII only so a Windows console can never crash on it."""
+import json
+import shutil
+import subprocess
+import sys
+
+ASPECTS = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
+
+INSTALL_HINT = ("Install ffmpeg first.  macOS: brew install ffmpeg   "
+                "Windows: winget install --id Gyan.FFmpeg -e   Linux: sudo apt install ffmpeg\n"
+                "Then close and reopen the terminal so it is on PATH.")
+
+
+class MediaError(RuntimeError):
+    pass
+
+
+def tool(name):
+    path = shutil.which(name)
+    if not path:
+        raise MediaError(f"{name} not found. {INSTALL_HINT}")
+    return path
+
+
+def run(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        tail = "\n".join((r.stderr or "").strip().splitlines()[-12:])
+        raise MediaError(f"{cmd[0]} failed:\n{tail}")
+    return r
+
+
+def probe(path):
+    """Return {'w','h','secs'} for an image or video."""
+    r = run([tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height", "-show_entries", "format=duration",
+             "-of", "json", str(path)])
+    d = json.loads(r.stdout)
+    if not d.get("streams"):
+        raise MediaError(f"no picture stream in {path}")
+    s = d["streams"][0]
+    secs = d.get("format", {}).get("duration")
+    return {"w": int(s["width"]), "h": int(s["height"]),
+            "secs": float(secs) if secs not in (None, "N/A") else 0.0}
+
+
+def last_frame(video, out_jpg):
+    """Extract the true final frame of a clip (used to seed the closing shot)."""
+    run([tool("ffmpeg"), "-y", "-v", "error", "-sseof", "-0.1", "-i", str(video),
+         "-frames:v", "1", "-q:v", "2", str(out_jpg)])
+    return out_jpg
+
+
+if __name__ == "__main__":
+    try:
+        print("ffmpeg :", tool("ffmpeg"))
+        print("ffprobe:", tool("ffprobe"))
+    except MediaError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)

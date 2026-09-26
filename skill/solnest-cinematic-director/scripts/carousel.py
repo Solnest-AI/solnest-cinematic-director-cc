@@ -152,10 +152,11 @@ def check_brand(B):
     for k in ("ink", "paper", "accent", "on_photo"):
         if B.get(k) and not HEX.match(str(B[k])):
             errs.append(f"brand: {k} must be a #RRGGBB colour, got '{B[k]}'")
-    for k, kind in (("display_font", "display"), ("text_font", "text")):
+    # headings may be any bundled face (sans brands exist); body text must be a sans
+    for k, kinds in (("display_font", ("display", "text")), ("text_font", ("text",))):
         f = B.get(k)
-        if f and (f not in FONTS or FONTS[f]["kind"] != kind):
-            ok = ", ".join(n for n, v in FONTS.items() if v["kind"] == kind)
+        if f and (f not in FONTS or FONTS[f]["kind"] not in kinds):
+            ok = ", ".join(n for n, v in FONTS.items() if v["kind"] in kinds)
             errs.append(f"brand: {k} '{f}' is not bundled; pick the closest of: {ok}")
     return errs
 

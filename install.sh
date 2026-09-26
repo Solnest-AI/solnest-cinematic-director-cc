@@ -59,5 +59,15 @@ else
   echo "Then check it with:  python3 \"$SRC/scripts/kie.py\" --balance"
 fi
 echo
+if python3 -c "import playwright, PIL" >/dev/null 2>&1; then
+  echo "Carousels: ready (Playwright + Pillow found)."
+else
+  echo "Carousels need two Python packages and a headless browser (videos do not)."
+  echo "Run these once:"
+  echo "  python3 -m pip install playwright pillow"
+  echo "  python3 -m playwright install chromium"
+fi
+echo
 echo "Restart Claude Code, then say:  make me a Solnest video for <listing url>"
+echo "                            or:  make me a carousel for <listing url>"
 echo "To uninstall:  rm \"$DEST\""

@@ -281,6 +281,55 @@ class PlanValidation(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+class CallToAction(unittest.TestCase):
+    """Every host has their own line: saved once in brand.json, overridable per plan."""
+    def plan(self, cta=None, caption="Nine floors above the lake."):
+        last = {"t": "last", "photo": "01", "claims": ["x"]}
+        if cta:
+            last["cta"] = cta
+        return {"slides": [{"t": "room", "photo": "02", "title": "x", "claims": ["x"]}, last], "caption": caption}
+
+    def test_plan_beats_brand_beats_default(self):
+        B = {"cta": "Book direct at lakehouse.com", "handle": "@lakehouse"}
+        self.assertEqual(carousel.resolve_cta(self.plan("DM us STAY"), B), ("DM us STAY", "plan"))
+        self.assertEqual(carousel.resolve_cta(self.plan(), B), ("Book direct at lakehouse.com", "brand"))
+        self.assertEqual(carousel.resolve_cta(self.plan(), {}), (carousel.DEFAULT_CTA, "default"))
+
+    def test_resolved_cta_lands_on_the_last_slide(self):
+        p = self.plan()
+        carousel.resolve_cta(p, {"cta": "Book direct at lakehouse.com"})
+        self.assertEqual(p["slides"][-1]["cta"], "Book direct at lakehouse.com")
+
+    def test_caption_gets_cta_and_handle_once(self):
+        B = {"handle": "@lakehouse"}
+        cap = carousel.full_caption(self.plan(), B, "Book direct at lakehouse.com")
+        self.assertTrue(cap.endswith("Book direct at lakehouse.com\n@lakehouse"), cap)
+        again = carousel.full_caption(self.plan(caption=cap), B, "book direct at LAKEHOUSE.com")
+        self.assertEqual(again.count("lakehouse.com"), 1)
+        self.assertEqual(again.count("@lakehouse"), 1)
+
+    def test_no_handle_no_handle_line(self):
+        cap = carousel.full_caption(self.plan(), {}, "DM us STAY")
+        self.assertTrue(cap.endswith("\n\nDM us STAY"), cap)
+
+    def test_last_slide_needs_no_cta_in_the_plan(self):
+        d = pathlib.Path(tempfile.mkdtemp())
+        p = {"facts": "f", "brand": "b", "caption": "x",
+             "slides": [{"t": "last", "photo": "01", "claims": ["x"]}]}
+        (d / "plan.json").write_text(json.dumps(p), encoding="utf-8")
+        self.assertEqual(carousel.load_plan(d / "plan.json")["slides"][0]["t"], "last")
+
+    def test_brand_cta_is_voice_checked(self):
+        good = {"name": "S", "ink": "#1B1B19", "paper": "#EEEDE8", "accent": "#8A8C6D", "on_photo": "#F7F5F0",
+                "display_font": "Cormorant Garamond", "text_font": "Montserrat"}
+        self.assertEqual(carousel.check_brand(dict(good, cta="Book direct at lakehouse.com")), [])
+        errs = " ".join(carousel.check_brand(dict(good, cta="Book now \u2014 #lake")))
+        self.assertIn("em dash", errs)
+        self.assertIn("hashtag", errs)
+        self.assertIn("too long", " ".join(carousel.check_brand(dict(good, cta="x" * 80))))
+
+
+@unittest.skipUnless(HAVE_PIL, "Pillow not installed")
 class Contrast(unittest.TestCase):
     def test_measure_uses_the_worst_pixels(self):
         im = Image.new("RGB", (2160, 2700), (255, 255, 255))

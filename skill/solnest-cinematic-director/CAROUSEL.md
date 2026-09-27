@@ -45,8 +45,10 @@ In every command below, `SCRIPTS` means this skill's `scripts/` folder (absolute
 1. **The listing:** an Airbnb link (best), another listing link, or a folder of photos.
 2. **Their website** (for colours, fonts and logo). No website is fine: use the quiet
    default brand below and say so.
-3. **What the last slide should ask people to do.** Their words, for example "Book direct at
-   lakehouse.com" or "DM us STAY". If they skip it, use "Save this for your next trip".
+3. **Their call to action**, only if their `brand.json` has no `"cta"` yet. Every host words
+   it differently ("Book direct at lakehouse.com", "DM us STAY", "Link in bio"). Offer the
+   `suggested_cta` from the brand pull (built from their own site's booking button) and let
+   them change it. It is saved in `brand.json` once and used on every carousel after that.
 4. **Their Instagram handle** for the caption (optional).
 
 ## Step 1 - Pull the listing
@@ -86,7 +88,8 @@ LOOK at `brand/site.png` and every `brand/logo_candidates/NN.png`, read the colo
   "on_photo": "#F7F5F0",
   "display_font": "Cormorant Garamond",
   "text_font": "Montserrat",
-  "logo": "logo_candidates/01.png"
+  "logo": "logo_candidates/01.png",
+  "cta": "Book your stay at solneststays.com"
 }
 ```
 
@@ -103,6 +106,11 @@ How to choose:
   - a bolder, high-contrast serif: **Playfair Display**;
   - a sans-serif: **Montserrat** or **Inter**.
 - **text_font** (labels, body): **Montserrat** (geometric) or **Inter** (neutral).
+- **cta:** the host's own call to action, in their words, one short line (60 characters
+  max, no dashes, hashtags or emoji). Start from `suggested_cta` in `brand_raw.json`
+  ("Book Your Stay" on their site becomes "Book your stay at theirsite.com") and confirm it
+  with them. Leave it out only if they have none: the builder then uses "Save this for
+  your next trip" and says so.
 - **logo:** the candidate that is really their logo (not a menu icon, not a photo). If
   none is right, use `null`. The last slide then shows their name as a wordmark. A logo
   without a transparent background is ignored automatically.
@@ -165,8 +173,11 @@ The photos and the text are.
 - **focal** `[x, y]` (0 to 1) is where the subject sits, so the 4:5 crop keeps it.
   **night: true** on dusk and night photos. **prefer** `"top"` / `"bottom"` / `"mid"` only
   if the text must avoid something.
-- **Caption:** three short paragraphs, then the CTA line, then the handle. Every fact in it
+- **Caption:** three short paragraphs of facts. Do NOT write the call to action or the
+  handle into it: the builder adds the host's CTA and handle at the end. Every fact in it
   goes in `caption_claims`. No em or en dashes, no hashtags, no emojis, US spelling.
+- **Call to action:** leave `cta` off the last slide. It comes from `brand.json`. Put a
+  `cta` on the last slide only to override it for this one post ("Book for Thanksgiving").
 
 ### plan.json (in the property folder)
 
@@ -199,9 +210,9 @@ The photos and the text are.
                 "Pandosy Village cafés, patios and boutiques, about 5 minutes",
                 "Downtown Kelowna and the waterfront promenade, about 10 minutes"]},
     {"t": "last", "photo": "05", "night": true, "line": "Kelowna, BC · Sleeps 4 · Dogs welcome",
-     "cta": "Save this for your next trip", "claims": ["Kelowna", "Dogs welcome"]}
+     "claims": ["Kelowna", "Dogs welcome"]}
   ],
-  "caption": "Nine floors above Okanagan Lake...\n\n@solneststays",
+  "caption": "Nine floors above Okanagan Lake...",
   "caption_claims": ["Nine floors above Okanagan Lake"]
 }
 ```
@@ -220,7 +231,7 @@ diptych photo) uses `source/fixed/NN.png` from the optional photo fix.
 | `diptych` | photos (2), title (label) | Two staggered detail photos on paper |
 | `list` | title, rows (label) | Rows of place + time on the accent colour |
 | `review` | quote, by (label) | Five stars, italic quote, guest name and town, on the accent colour |
-| `last` | photo, cta (line) | Photo, logo or wordmark, CTA |
+| `last` | photo (line, cta) | Photo, logo or wordmark, the host's call to action |
 
 ## Step 4 - Check (free, instant)
 

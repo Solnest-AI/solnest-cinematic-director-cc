@@ -48,6 +48,22 @@ class ToAlpha(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+class SuggestedCta(unittest.TestCase):
+    def test_booking_button_becomes_a_line_with_the_domain(self):
+        cands = [{"text": "Explore Our Stays", "href": "/stays"}, {"text": "BOOK YOUR STAY", "href": "/book"}]
+        self.assertEqual(brand_pull.suggest_cta(cands, "www.solneststays.com"),
+                         "Book your stay at solneststays.com")
+
+    def test_first_booking_word_wins_over_generic_links(self):
+        cands = [{"text": "About us", "href": "/about"}, {"text": "Check availability", "href": "/a"}]
+        self.assertEqual(brand_pull.suggest_cta(cands, "lakehouse.com"), "Check availability at lakehouse.com")
+
+    def test_nothing_bookable_means_no_suggestion(self):
+        self.assertIsNone(brand_pull.suggest_cta([{"text": "About us", "href": "/about"}], "x.com"))
+        self.assertIsNone(brand_pull.suggest_cta([], "x.com"))
+
+
+@unittest.skipUnless(HAVE_PIL, "Pillow not installed")
 class Palette(unittest.TestCase):
     def test_merges_near_duplicates_and_ranks_by_area(self):
         p = brand_pull.palette([("#FFFFFF", 500), ("#FEFEFE", 300), ("#8A8C6D", 150), ("#000000", 50)])

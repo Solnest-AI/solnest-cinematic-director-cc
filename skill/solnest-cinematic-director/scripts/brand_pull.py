@@ -60,6 +60,22 @@ def palette(counts, top=8):
     return [(m["hex"], round(m["w"] / total, 3)) for m in merged[:top]]
 
 
+_BOOKING = re.compile(r"\b(book|reserve|availability|check dates|stay with us|enquire|inquire)\b", re.I)
+
+
+def suggest_cta(candidates, domain):
+    """A starting call to action from the site's own booking button: "Book Your Stay" on
+    solneststays.com becomes "Book your stay at solneststays.com". None if the site has no
+    booking button; the host always gets the final word."""
+    dom = re.sub(r"^www\.", "", (domain or "").strip().lower())
+    for c in candidates or []:
+        text = re.sub(r"\s+", " ", str(c.get("text", ""))).strip()
+        if 3 <= len(text) <= 40 and _BOOKING.search(text):
+            line = text[0].upper() + text[1:].lower()
+            return f"{line} at {dom}" if dom else line
+    return None
+
+
 def to_alpha(img):
     """A logo with a transparent background, cropped to the mark, or None.
     Keeps real transparency; otherwise keys out a plain light or dark box by luminance.
@@ -110,9 +126,13 @@ READ_JS = """() => {
   }
   const font = sel => { const e = document.querySelector(sel); return e ? getComputedStyle(e).fontFamily : null; };
   const meta = n => (document.querySelector(`meta[property="${n}"], meta[name="${n}"]`) || {}).content || null;
+  const ctas = [...document.querySelectorAll('a, button')].filter(e => { const r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0; }).map(e => ({text: (e.innerText || '').trim(), href: e.getAttribute('href') || ''}))
+    .filter(c => c.text && c.text.length <= 40).slice(0, 60);
   return {bg: Object.entries(bg), fg: Object.entries(fg), btn: Object.entries(btn),
           fonts: {h1: font('h1'), h2: font('h2'), h3: font('h3'), body: font('p') || font('body'), button: font('button, a[class*="button" i]')},
-          site_name: meta('og:site_name'), title: document.title, url: location.href};
+          site_name: meta('og:site_name'), title: document.title, url: location.href, host: location.hostname,
+          ctas};
 }"""
 
 LOGO_SEL = ("header img, header svg, [class*='logo' i] img, [class*='logo' i] svg, img[class*='logo' i], "
@@ -181,7 +201,9 @@ def main(argv=None):
            "backgrounds": palette([(h, w) for c, w in d["bg"] if (h := css_hex(c))]),
            "text_colors": palette([(h, w) for c, w in d["fg"] if (h := css_hex(c))]),
            "button_colors": palette([(h, w) for c, w in d["btn"] if (h := css_hex(c))], top=4),
-           "logo_candidates": d["logo_candidates"]}
+           "logo_candidates": d["logo_candidates"],
+           "cta_candidates": [c for c in d.get("ctas", []) if _BOOKING.search(c["text"])][:5],
+           "suggested_cta": suggest_cta(d.get("ctas", []), d.get("host", ""))}
     (outdir / "brand_raw.json").write_text(json.dumps(raw, indent=1, ensure_ascii=False), encoding="utf-8")
     out(f"OK  {raw['site_name'] or raw['title']}: {len(raw['backgrounds'])} background colours, "
         f"{len(raw['logo_candidates'])} logo candidates -> {outdir}")
@@ -189,6 +211,7 @@ def main(argv=None):
     out(f"  text:        {raw['text_colors'][:4]}")
     out(f"  buttons:     {raw['button_colors']}")
     out(f"  fonts:       {raw['fonts']}")
+    out(f"  suggested call to action: {raw['suggested_cta'] or '(none found: ask the host for their line)'}")
     out(f"Now LOOK at {outdir / 'site.png'} and each logo candidate, then write brand.json.")
     return 0
 

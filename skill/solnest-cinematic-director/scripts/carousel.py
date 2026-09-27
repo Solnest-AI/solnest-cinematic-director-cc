@@ -67,13 +67,15 @@ TEMPLATES = {
     "diptych": ("photos", "title"),
     "list": ("title", "rows"),
     "review": ("quote", "by"),
-    "last": ("photo", "cta"),
+    "last": ("photo",),  # the CTA comes from the plan, else the host's brand.json, else a default
 }
 PHOTO_TEMPLATES = ("cover", "room", "photo", "last")
 FACTUAL = ("cover", "room", "split", "list", "last")   # these must cite at least one fact
 LOOKS = ("house", "levels", "none")  # house = levels + one grade; levels = tone fix only; none = untouched
 TEXT_FIELDS = ("label", "title", "body", "line", "cta")
 BRAND_KEYS = ("name", "ink", "paper", "accent", "on_photo", "display_font", "text_font")
+DEFAULT_CTA = "Save this for your next trip"
+MAX_CTA = 60
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
@@ -175,7 +177,43 @@ def check_brand(B):
         if f and (f not in FONTS or FONTS[f]["kind"] not in kinds):
             ok = ", ".join(n for n, v in FONTS.items() if v["kind"] in kinds)
             errs.append(f"brand: {k} '{f}' is not bundled; pick the closest of: {ok}")
+    if "cta" in B:
+        cta = B["cta"]
+        if not isinstance(cta, str) or not cta.strip():
+            errs.append("brand: cta must be the host's line as text (or leave it out for the default)")
+        else:
+            if len(cta) > MAX_CTA:
+                errs.append(f"brand: cta is too long ({len(cta)} chars, max {MAX_CTA}); keep it to one short line")
+            errs += [f"brand: {h}" for h in voice_hits("cta", cta)]
     return errs
+
+
+def resolve_cta(plan, B):
+    """The host's call to action, which every host words differently: the plan's last
+    slide (a one-off override) wins, then the host's saved line in brand.json, then a
+    neutral default. It is written onto the last slide. Returns (cta, source)."""
+    last = next((s for s in plan["slides"] if s.get("t") == "last"), None)
+    if last is not None and last.get("cta"):
+        cta, src = last["cta"], "plan"
+    elif B.get("cta"):
+        cta, src = B["cta"], "brand"
+    else:
+        cta, src = DEFAULT_CTA, "default"
+    if last is not None:
+        last["cta"] = cta
+    return cta, src
+
+
+def full_caption(plan, B, cta):
+    """The caption as posted: the plan's text, then the host's CTA and handle, each added
+    only if it is not already there (so an older plan that wrote them in is not doubled)."""
+    cap = str(plan.get("caption", "")).strip()
+    if norm(cta) not in norm(cap):
+        cap += "\n\n" + cta
+    handle = B.get("handle")
+    if handle and handle.lower() not in cap.lower():
+        cap += "\n" + handle
+    return cap
 
 
 def usable_logo(path):
@@ -390,20 +428,25 @@ def attribution(review):
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️]")
 
 
+def voice_hits(where, text):
+    text, hits = str(text or ""), []
+    if "—" in text:
+        hits.append(f"{where}: em dash")
+    if "–" in text:
+        hits.append(f"{where}: en dash")
+    if re.search(r"(?<!\w)#\w", text):
+        hits.append(f"{where}: hashtag")
+    if _EMOJI.search(text):
+        hits.append(f"{where}: emoji")
+    return hits
+
+
 def check_voice(plan):
     """Brand voice on OUR words. Review quotes are the guest's words and are exempt."""
     hits = []
 
     def scan(where, text):
-        text = str(text or "")
-        if "—" in text:
-            hits.append(f"{where}: em dash")
-        if "–" in text:
-            hits.append(f"{where}: en dash")
-        if re.search(r"(?<!\w)#\w", text):
-            hits.append(f"{where}: hashtag")
-        if _EMOJI.search(text):
-            hits.append(f"{where}: emoji")
+        hits.extend(voice_hits(where, text))
 
     for i, s in enumerate(plan["slides"], 1):
         for f in TEXT_FIELDS:
@@ -776,6 +819,7 @@ def gate(plan, pdir):
     except (OSError, ValueError) as e:
         return [f"brand: cannot read {plan['brand']}: {e}"], None
     problems += check_brand(B)
+    cta, cta_src = resolve_cta(plan, B)   # before the checks: the CTA's words are the host's
     try:
         facts = (pdir / plan["facts"]).read_text(encoding="utf-8")
     except OSError as e:
@@ -808,7 +852,8 @@ def gate(plan, pdir):
         logo = usable_logo((pdir / plan["brand"]).parent / B["logo"])
         if logo is None:
             out(f"note: logo {B['logo']} has no transparent background; using a wordmark instead")
-    return problems, {"B": B, "logo": logo, "notes": plan.get("style_words", [])}
+    return problems, {"B": B, "logo": logo, "notes": plan.get("style_words", []), "cta": cta, "cta_src": cta_src,
+                      "caption": full_caption(plan, B, cta)}
 
 
 def build(plan_path, check_only=False):
@@ -827,6 +872,9 @@ def build(plan_path, check_only=False):
         return 2
     if ctx["notes"]:
         out(f"style words you declared as claiming nothing (show the host): {', '.join(ctx['notes'])}")
+    out(f"call to action: \"{ctx['cta']}\" (from {'brand.json' if ctx['cta_src'] == 'brand' else ctx['cta_src']})")
+    if ctx["cta_src"] == "default":
+        out("note: this host has no call to action saved. Ask for their line and save it in brand.json as \"cta\".")
     if check_only:
         out(f"CHECKS PASSED: {len(plan['slides'])} slides, facts, numbers, words, reviews, voice, photos, brand")
         return 0
@@ -894,7 +942,7 @@ def build(plan_path, check_only=False):
         finally:
             R.close()
 
-    (work / "caption.txt").write_text(plan["caption"].strip() + "\n", encoding="utf-8")
+    (work / "caption.txt").write_text(ctx["caption"] + "\n", encoding="utf-8")
     fs = sorted(work.glob("slide_*.jpg"))  # preview from the EXPORTED files
     tw, th, cols = 360, 450, 4
     rows = (len(fs) + cols - 1) // cols
@@ -905,7 +953,8 @@ def build(plan_path, check_only=False):
     for p in list(work.glob("_r*")) + list(work.glob("photo_*")) + list(work.glob("logo_*")):
         p.unlink()
     (work / "report.json").write_text(json.dumps({"plan": plan_path.name, "passed": ok_all, "slides": report,
-                                                  "style_words": ctx["notes"]},
+                                                  "style_words": ctx["notes"],
+                                                  "cta": ctx["cta"], "cta_source": ctx["cta_src"]},
                                                  indent=1, ensure_ascii=False), encoding="utf-8")
     final_dir = pdir / "runs" / f"{plan_path.stem}-{stamp}{'' if ok_all else '-FAILED'}"
     work.rename(final_dir)

@@ -48,30 +48,44 @@ end on a shot that continues the last one.**
 | Crop each photo by hand | Blind centre crops cut the subject out of the room. |
 | Veo 3.1 on KIE | USD 0.325 flat per clip at 4, 6 or 8s, 1080p, about 2-3 minutes. 28% cheaper than Kling for the same beats, and pay-as-you-go with no subscription. |
 
-## What this needs
+## What this needs (you set it all up; the host never runs a command)
 
-1. **ffmpeg** (and ffprobe, which ships with it). Check with `ffmpeg -version`.
-   Missing? macOS `brew install ffmpeg`, Windows `winget install --id Gyan.FFmpeg -e`,
-   Linux `sudo apt install ffmpeg`. Then reopen the terminal. Stop until it works.
-2. **Python 3.9+**. No packages to install. Every script is standard library.
-   Use whichever command works on this machine: `python3` (Mac/Linux), or `py -3` /
-   `python` on Windows.
-3. **A KIE API key** with credits (kie.ai, pay as you go, USD 5 minimum). The scripts look
-   for `KIE_API_KEY` in the environment, then in `.env` files in this skill's folder,
-   the current folder, and the home folder. If it is missing, tell the user exactly this:
-   "Put `KIE_API_KEY=your_key` on its own line in `<this skill's folder>/.env`." Never
-   ask them to paste the key into the chat, and never print it.
-4. **Firecrawl MCP** to read a listing URL (not needed for a folder of photos).
+The host is in the Claude Code desktop app and will not type commands. Every command in
+this file is yours to run with your Bash tool (Git Bash on Windows). The only thing a host
+ever does by hand is paste their own KIE key into a file you open for them.
 
-In every command below, `SCRIPTS` means this skill's `scripts/` folder (absolute path).
+1. **uv.** The STR Secrets Connections kit installs it; check with `uv --version`. If it is
+   missing, install it yourself. Mac: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+   Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`.
+   A fresh install is not on PATH until the app restarts, so call uv by the full path the
+   installer prints (usually `~/.local/bin/uv`, or `uv.exe` in the same folder on Windows).
+2. **The doctor, before anything costs money:**
+
+   ```bash
+   uv run SCRIPTS/doctor.py --video
+   ```
+
+   It installs what is missing by itself (the Python packages, a bundled ffmpeg, the
+   headless browser for reading listings), then checks the KIE key and balance. No brew,
+   no winget, no pip. Carry on when the last line says `READY`.
+3. **The KIE key.** The doctor finds it where the Connections kit saved it. If it prints
+   `[needs you]`, it has created `<this skill's folder>/.env`. Open that file for the host
+   (Mac `open -e "<path>"`, Windows `notepad "$(cygpath -w "<path>")"`), ask them to paste
+   their key after `KIE_API_KEY=` and save, then run the doctor again. Never ask for the
+   key in chat and never print it.
+4. **Firecrawl MCP** only as a fallback for listing sites other than Airbnb.
+
+Run every script as `uv run SCRIPTS/<name>.py ...`, never plain `python`: `uv run` reads
+the script's header and installs what it needs the first time. In every command below,
+`SCRIPTS` means this skill's `scripts/` folder (absolute path, in quotes if it has spaces).
 (Prices here are written as "USD 2" on purpose: Claude Code swaps a dollar sign followed by a
 digit in a SKILL.md for the words the skill was called with, which garbles dollar amounts.)
 
 ## The one rule on stopping
 
 Run the whole pipeline. The only planned questions are in Step 0. After that, stop only
-when something actually fails (missing ffmpeg or key, not enough credits, a clip that
-fails twice). The single exception: if you genuinely cannot see the photos (Step 2),
+when something actually fails (a `[failed]` line from the doctor, a missing key, not
+enough credits, a clip that fails twice). The single exception: if you genuinely cannot see the photos (Step 2),
 stop and ask before spending anything.
 
 ## Step 0 - Input, use and shape
@@ -85,50 +99,38 @@ stop and ask before spending anything.
 3. Preflight, before anything costs money:
 
 ```bash
-ffmpeg -version
-python3 SCRIPTS/kie.py --balance
+uv run SCRIPTS/doctor.py --video
 ```
 
-The balance line must show at least 455 credits for a 6-beat video with a closing shot
-(390 for 5 beats). If the key check fails, stop and give the one-line fix above.
+It must end with `READY`: a 6-beat video with a closing shot needs 455 credits (390 for
+5 beats). If it says `[needs you]`, do what that line says (open the key file for the
+host, or tell them to top up at kie.ai), then run it again.
 
 ## Step 1 - Get the photos
 
 Work in `listing-walkthroughs/<property-slug>/` under the current folder.
 
-**From an Airbnb URL, get the FULL gallery from the page itself** (measured 2026-09-25:
-a Firecrawl JSON scrape returned only the 5 hero photos of a 32-photo listing). Fetch the
-page with a browser User-Agent and pull every photo URL for that listing id:
+**From a listing URL, pull the full gallery with the listing puller** (measured
+2026-09-25: a Firecrawl JSON scrape returned only the 5 hero photos of a 32-photo listing):
 
 ```bash
-curl -fsSL -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" "https://www.airbnb.com/rooms/<ID>?locale=en" -o source/_page.html
-grep -oE 'https://a0\.muscache\.com/im/pictures/[A-Za-z0-9/_-]*Hosting-<ID>/original/[A-Za-z0-9-]+\.(jpeg|jpg|png|webp)' source/_page.html | python3 -c "import sys; print(''.join(dict.fromkeys(sys.stdin)), end='')" > source/_urls.txt
+uv run SCRIPTS/listing_pull.py "<listing url>" listing-walkthroughs/<property-slug>
 ```
 
-- If the saved page is tiny and says "Redirecting to www.airbnb.ca" (or another country),
-  fetch that domain instead. Airbnb redirects by location.
-- On Windows, have Python do the same fetch and regex instead of grep/awk.
-- If that still finds fewer than 8 photos (VRBO, Zillow, other sites), fall back to
-  Firecrawl: `firecrawl_scrape` with `formats: ["json"]`, a `photos` array of
-  `{url, room}`, `waitFor: 8000`, `onlyMainContent: false`.
+In about 15 seconds it writes every photo at full size to `source/full/NN.jpg` (Airbnb's
+2560px originals), 480px copies to `source/thumbs/`, and a numbered contact sheet
+`source/_sheet.jpg`. It follows Airbnb's country redirects on its own.
 
-Then download:
-
-- Airbnb images live on `a0.muscache.com`. `?im_w=` accepts ONLY 480, 720, 1200 or
-  2560. **400 returns a 404**, and curl without `-f` saves the error page as a .jpg.
-- Thumbnails for looking: `?im_w=480` into `source/thumbs/`.
-- Originals for cropping: `?im_w=2560` into `source/` (only the ones you pick).
-- Always `curl -fsSL --retry 3`, then check every file is bigger than zero.
-
-**From a folder:** use the images directly.
+- If it exits with "found only N photos" (VRBO, Zillow and other sites often block it),
+  fall back to Firecrawl: `firecrawl_scrape` with `formats: ["json"]`, a `photos` array of
+  `{url, room}`, `waitFor: 8000`, `onlyMainContent: false`, download the photos into one
+  folder, then use folder mode below.
+- **From a folder of photos:** `uv run SCRIPTS/listing_pull.py --folder "<folder>" listing-walkthroughs/<property-slug>`
+  numbers them into `source/full/` and makes the same sheet.
 
 ## Step 2 - Look, then curate 5 or 6 beats
 
-Build a contact sheet and LOOK at it. Scraped room labels are an ordering hint only.
-
-```bash
-python3 SCRIPTS/sheet.py source/_sheet.jpg source/thumbs/*.jpg --cols 5
-```
+LOOK at `source/_sheet.jpg`. Scraped room labels are an ordering hint only.
 
 Choose 5 or 6 distinct beats. Good order:
 
@@ -151,11 +153,12 @@ Look at each original and decide where the subject sits horizontally (and vertic
 for 16:9). Then crop:
 
 ```bash
-python3 SCRIPTS/crop.py source/03.jpg crops/01.jpg --aspect 9:16 --x 0.42
+uv run SCRIPTS/crop.py source/full/03.jpg crops/01.jpg --aspect 9:16 --x 0.42
 ```
 
 `--x`/`--y` are 0.0 to 1.0 (0.5 = centre). `--zoom 1.1` tightens slightly. Number crops
-in beat order. Then build a sheet of the crops and look at it once more. The subject of
+in beat order. Then build a sheet of the crops (`uv run SCRIPTS/sheet.py crops/_crops.jpg crops/0*.jpg --cols 6`)
+and look at it once more. The subject of
 every room must be in frame, with no half-sofas or cut-off doorways at the edge.
 
 ## Step 4 - Write one prompt per beat
@@ -200,8 +203,8 @@ Write `plan.json` in the property folder (paths relative to it):
 Check it, then run it:
 
 ```bash
-python3 SCRIPTS/make_clips.py plan.json --dry-run
-python3 SCRIPTS/make_clips.py plan.json
+uv run SCRIPTS/make_clips.py plan.json --dry-run
+uv run SCRIPTS/make_clips.py plan.json
 ```
 
 The dry run validates the plan and shows the exact cost and balance without spending.
@@ -210,18 +213,18 @@ shot. It writes `clips/_run.json` with the real credits spent.
 
 ## Step 6 - Check the clips before assembling
 
-Pull a middle frame from each clip and look at them together:
+Pull the start, middle and end frame of every clip onto sheets and LOOK at each one
+(warping shows up late in a move, so the end frame matters most):
 
 ```bash
-for f in clips/*.mp4; do ffmpeg -v error -y -ss 3 -i "$f" -frames:v 1 -vf scale=360:-2 "clips/_check_$(basename "$f" .mp4).jpg"; done
-python3 SCRIPTS/sheet.py clips/_check.jpg clips/_check_*.jpg --tile 360
+uv run SCRIPTS/clipcheck.py clips
 ```
 
-(Windows PowerShell: run the ffmpeg line once per clip.) Warped walls, melting furniture
-or an invented room? Regenerate just that beat with a gentler, simpler move:
+Warped walls, melting furniture or an invented room? Regenerate just that beat with a
+gentler, simpler move:
 
 ```bash
-python3 SCRIPTS/make_clips.py plan.json --only 04_barn
+uv run SCRIPTS/make_clips.py plan.json --only 04_barn
 ```
 
 If you regenerate the final beat, also regenerate the closing shot (`--only 06_deck,ending`),
@@ -230,7 +233,7 @@ because it is seeded from that beat's last frame.
 ## Step 7 - Assemble
 
 ```bash
-python3 SCRIPTS/assemble.py clips --out final/walkthrough-9x16.mp4 [--music assets/bed.mp3]
+uv run SCRIPTS/assemble.py clips --out final/walkthrough-9x16.mp4 [--music assets/bed.mp3]
 ```
 
 Every beat but the last is trimmed to 4.6s, joined with 0.6s crossfades; the last beat
@@ -257,7 +260,7 @@ report:
 ```
 listing-walkthroughs/<property-slug>/
   PROPERTY.md
-  source/        thumbs/, _sheet.jpg, originals you picked
+  source/        full/ (every photo), thumbs/, _sheet.jpg, facts.txt, reviews.json
   crops/         01.jpg ... one per beat
   plan.json
   clips/         one mp4 per beat, zz_ending.mp4, _run.json

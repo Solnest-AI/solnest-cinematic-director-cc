@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["pillow>=10"]
+# ///
 """OPTIONAL photo polish for carousel slides: Seedream 5.0 Pro on KIE.
 
 Off by default. Use it only when the host asks to improve a specific photo (a dark room, a

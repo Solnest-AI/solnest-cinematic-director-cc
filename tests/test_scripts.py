@@ -109,7 +109,8 @@ class KeyLookup(unittest.TestCase):
 
     def test_missing_key_explains_where_to_put_it(self):
         with mock.patch.dict(os.environ, {}, clear=True), \
-             mock.patch.object(kie, "key_search_paths", return_value=[pathlib.Path("/nonexistent/.env")]):
+             mock.patch.object(kie, "key_search_paths", return_value=[pathlib.Path("/nonexistent/.env")]), \
+             mock.patch.object(kie, "_key_from_claude_config", return_value=(None, None)):
             with self.assertRaises(kie.KieError) as cm:
                 kie.find_key()
         self.assertIn("KIE_API_KEY=", str(cm.exception))

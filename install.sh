@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Install the Solnest Cinematic Director into Claude Code (macOS / Linux).
-# Symlinks the skill into ~/.claude/skills/ so `git pull` updates it in place.
-# Windows: copy skill/solnest-cinematic-director into %USERPROFILE%\.claude\skills\ instead.
+# Claude runs this for the user; nobody has to type it. It symlinks the skill into
+# ~/.claude/skills/ (so `git pull` updates it in place), then runs the doctor, which
+# installs everything else the skill needs through uv (Python packages, a bundled ffmpeg,
+# the headless browser). Windows: copy skill/solnest-cinematic-director into
+# ~/.claude/skills/ instead, then run the doctor the same way.
 
 set -euo pipefail
 
@@ -11,26 +14,15 @@ DEST="$HOME/.claude/skills/solnest-cinematic-director"
 echo "Solnest Cinematic Director installer"
 echo
 
-ok=1
-check() {  # name, command, fix
-  if command -v "$2" >/dev/null 2>&1; then
-    echo "  [ok]   $1"
-  else
-    echo "  [MISS] $1   $3"
-    ok=0
-  fi
-}
-check "ffmpeg " ffmpeg  "macOS: brew install ffmpeg   Linux: sudo apt install ffmpeg"
-check "ffprobe" ffprobe "ships with ffmpeg"
-check "python3" python3 "macOS: brew install python   Linux: sudo apt install python3"
-check "curl   " curl    "required to download listing photos"
-[ -f "$SRC/SKILL.md" ] || { echo "  [MISS] SKILL.md not found at $SRC"; ok=0; }
-
-if [ "$ok" -ne 1 ]; then
-  echo
-  echo "Fix the items marked MISS above, then run this again."
+UV="$(command -v uv || true)"
+[ -z "$UV" ] && [ -x "$HOME/.local/bin/uv" ] && UV="$HOME/.local/bin/uv"
+if [ -z "$UV" ]; then
+  echo "  [MISS] uv. Install it with:  curl -LsSf https://astral.sh/uv/install.sh | sh"
+  echo "         then run this installer again."
   exit 1
 fi
+echo "  [ok]   uv ($UV)"
+[ -f "$SRC/SKILL.md" ] || { echo "  [MISS] SKILL.md not found at $SRC"; exit 1; }
 
 mkdir -p "$HOME/.claude/skills"
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
@@ -43,30 +35,10 @@ if [ -e "$DEST" ] || [ -L "$DEST" ]; then
   fi
 fi
 ln -s "$SRC" "$DEST"
-echo
 echo "  Installed: $DEST -> $SRC"
 echo
 
-if python3 "$SRC/scripts/kie.py" --balance; then
-  echo
-  echo "KIE key works."
-else
-  echo
-  echo "One step left: add your KIE key. Open this file (create it if needed):"
-  echo "  $SRC/.env"
-  echo "and add one line:"
-  echo "  KIE_API_KEY=your_key_from_kie.ai"
-  echo "Then check it with:  python3 \"$SRC/scripts/kie.py\" --balance"
-fi
-echo
-if python3 -c "import playwright, PIL" >/dev/null 2>&1; then
-  echo "Carousels: ready (Playwright + Pillow found)."
-else
-  echo "Carousels need two Python packages and a headless browser (videos do not)."
-  echo "Run these once:"
-  echo "  python3 -m pip install playwright pillow"
-  echo "  python3 -m playwright install chromium"
-fi
+"$UV" run "$SRC/scripts/doctor.py" --video || true
 echo
 echo "Restart Claude Code, then say:  make me a Solnest video for <listing url>"
 echo "                            or:  make me a carousel for <listing url>"

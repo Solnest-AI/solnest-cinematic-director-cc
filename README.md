@@ -27,11 +27,13 @@ Claude does the rest and tells you if anything is missing.
 
 | Thing | What it does | Cost |
 |---|---|---|
-| **KIE API key** ([kie.ai](https://kie.ai/api-key)) | Generates the video clips | Pay as you go, $5 minimum, about $2 per video |
-| **ffmpeg** | Joins the clips on your machine | Free |
-| **Python 3.9+** | Runs the helper scripts (no packages to install) | Free |
+| **Claude Code** (desktop app is fine) | Does every step for you, including the setup | Paid Claude plan |
+| **uv** | Runs the skill's Python tools; Claude installs it if it is missing | Free |
+| **KIE API key** ([kie.ai](https://kie.ai/api-key)), videos only | Generates the video clips | Pay as you go, $5 minimum, about $2 per video |
 | Firecrawl MCP (optional) | Reads non-Airbnb listing pages for videos | Free plan is fine |
-| **Playwright + Pillow** (carousels only) | Reads the listing and your site, renders the slides | Free, about 200 MB once |
+
+You never type a command. Claude installs what the skill needs the first time (about 200 MB,
+most of it the headless browser that reads listings, plus a bundled ffmpeg for videos).
 
 Your KIE key goes in a file called `.env` inside the skill folder, one line:
 `KIE_API_KEY=your_key`. **Never paste a key into the chat.**
@@ -112,30 +114,30 @@ in Instagram. Details in
 
 ## Claude: install steps
 
-Follow these in order. Stop and tell the user plainly if a step fails.
+The user will not run commands. You run every step with your Bash tool (Git Bash on
+Windows). Stop and tell the user plainly, in one sentence, if a step fails.
 
-1. **Clone** this repo somewhere permanent, for example `~/solnest-cinematic-director-cc`
-   (Windows: `%USERPROFILE%\solnest-cinematic-director-cc`).
-2. **Put the skill where Claude Code finds it.**
-   - macOS / Linux: run `./install.sh` from the repo folder. It checks ffmpeg and Python
-     and symlinks `skill/solnest-cinematic-director` into `~/.claude/skills/`.
-   - Windows: copy the folder `skill\solnest-cinematic-director` to
-     `%USERPROFILE%\.claude\skills\solnest-cinematic-director` (copy, not a symlink).
-3. **ffmpeg.** Check `ffmpeg -version`. If missing: macOS `brew install ffmpeg`,
-   Windows `winget install --id Gyan.FFmpeg -e`, Linux `sudo apt install ffmpeg`.
-   The user must reopen the terminal afterwards.
-4. **Python.** Check `python3 --version` (Windows: `py -3 --version`). 3.9 or newer.
-   On Windows, do not type bare `python` if it opens the Microsoft Store.
-5. **KIE key.** If `KIE_API_KEY` is not already set, create
-   `<skills folder>/solnest-cinematic-director/.env` and ask the user to open it and add
-   `KIE_API_KEY=their_key` themselves. Do not ask for the key in chat. Do not print it.
-6. **Verify:** run `python3 <skills folder>/solnest-cinematic-director/scripts/kie.py --balance`
-   (Windows: `py -3 ...`). It must print the balance. Under 455 credits means they need to
-   top up before their first 30 second video.
-7. **Carousels (optional):** run `python3 -m pip install playwright pillow` and
-   `python3 -m playwright install chromium` (Windows: `py -3 -m ...`). Check with
-   `python3 -c "import playwright, PIL"`. Skip this if they only want videos.
-8. Tell the user to **restart Claude Code**, then say
+1. **uv.** Check `uv --version`. If it is missing, install it yourself: macOS/Linux
+   `curl -LsSf https://astral.sh/uv/install.sh | sh`; Windows
+   `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`.
+   It is not on PATH until the app restarts, so call it by the full path the installer
+   prints (usually `~/.local/bin/uv`).
+2. **Clone** this repo somewhere permanent, for example `~/solnest-cinematic-director-cc`.
+3. **Put the skill where Claude Code finds it.**
+   - macOS / Linux: run `./install.sh` from the repo folder (it symlinks
+     `skill/solnest-cinematic-director` into `~/.claude/skills/`, then runs the doctor).
+   - Windows: copy the folder `skill/solnest-cinematic-director` to
+     `~/.claude/skills/solnest-cinematic-director` (copy, not a symlink).
+4. **Run the doctor:** `uv run <skills folder>/solnest-cinematic-director/scripts/doctor.py --video`.
+   It installs the Python packages, a bundled ffmpeg and the headless browser by itself,
+   then checks the KIE key and balance. It must end with `READY` (videos need 455 credits).
+5. **KIE key, only if the doctor says `[needs you]`.** It has created
+   `<skills folder>/solnest-cinematic-director/.env`. Open it for the user (macOS
+   `open -e "<path>"`, Windows `notepad "$(cygpath -w "<path>")"`), ask them to paste their
+   key after `KIE_API_KEY=` and save, then run the doctor again. Never ask for the key in
+   chat. Never print it. If they used the STR Secrets Connections kit, the doctor already
+   finds the key the kit saved.
+6. Tell the user to **restart Claude Code**, then say
    `make me a Solnest video for <listing url>` or `make me a carousel for <listing url>`.
 
 ## Update
@@ -147,7 +149,7 @@ if you replaced the folder.
 ## For developers
 
 ```bash
-python3 -m unittest discover -s tests -v
+uv run --with pillow python -m unittest discover -s tests -v
 ```
 
 Offline tests, no network and no credits. The video scripts are Python standard library

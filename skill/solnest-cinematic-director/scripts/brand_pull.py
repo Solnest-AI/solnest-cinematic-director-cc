@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["playwright==1.60.0", "pillow>=10"]
+# ///
 """Read a host's brand from their own website: colours by how much of the page they paint,
 the fonts on headings and body text, and every plausible logo, each cut out onto a
 transparent background. No API key; a headless browser (Playwright) does the reading.
@@ -23,6 +27,8 @@ import re
 import sys
 
 from PIL import Image, ImageChops, ImageOps
+
+import browser
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
@@ -145,7 +151,7 @@ def read_site(url, outdir):
     cand = outdir / "logo_candidates"
     cand.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as pw:
-        br = pw.chromium.launch()
+        br = browser.launch(pw)
         try:
             pg = br.new_page(user_agent=UA, viewport={"width": 1280, "height": 900}, device_scale_factor=3)
             pg.goto(url, wait_until="domcontentloaded", timeout=60000)

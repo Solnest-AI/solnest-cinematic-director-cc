@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["imageio-ffmpeg>=0.5"]
+# ///
 """Contact sheet: many photos in one image, so you can see every room at once.
 
 Scraped room labels are unreliable (on one test listing EVERY label was wrong). Look

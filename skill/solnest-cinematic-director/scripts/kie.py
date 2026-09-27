@@ -63,6 +63,30 @@ def key_search_paths():
     return [SKILL_DIR / ".env", pathlib.Path.cwd() / ".env", pathlib.Path.home() / ".env"]
 
 
+def _key_from_claude_config():
+    """The KIE key the STR Secrets Connections kit (or any KIE MCP setup) already saved:
+    ~/.claude.json lists MCP servers; one of them carries KIE_API_KEY directly or points
+    at the kit's .env through KIE_ENV_PATH. Read quietly; never printed."""
+    cfg_path = pathlib.Path.home() / ".claude.json"
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, None
+    servers = dict(cfg.get("mcpServers") or {})
+    for proj in (cfg.get("projects") or {}).values():
+        if isinstance(proj, dict):
+            servers.update(proj.get("mcpServers") or {})
+    for name, srv in servers.items():
+        env = (srv or {}).get("env") or {} if isinstance(srv, dict) else {}
+        if str(env.get("KIE_API_KEY", "")).strip():
+            return env["KIE_API_KEY"].strip(), f"{cfg_path} (MCP server '{name}')"
+        if env.get("KIE_ENV_PATH"):
+            k = _read_env_file(env["KIE_ENV_PATH"]).get("KIE_API_KEY", "")
+            if k:
+                return k, str(env["KIE_ENV_PATH"])
+    return None, None
+
+
 def find_key():
     """Return (key, where_it_came_from). Never prints the key."""
     k = os.environ.get("KIE_API_KEY", "").strip()
@@ -72,6 +96,9 @@ def find_key():
         k = _read_env_file(p).get("KIE_API_KEY", "")
         if k:
             return k, str(p)
+    k, where = _key_from_claude_config()
+    if k:
+        return k, where
     looked = "\n  ".join(str(p) for p in key_search_paths())
     raise KieError(
         "No KIE_API_KEY found. Get one at https://kie.ai/api-key and add this line to "

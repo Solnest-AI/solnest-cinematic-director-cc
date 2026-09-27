@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["playwright==1.60.0", "pillow>=10"]
+# ///
 """Pull everything a carousel needs from a listing: every photo at full size, the listing
 text (the only source of truth for claims), and the guest reviews. No API key.
 
@@ -33,6 +37,8 @@ import time
 import urllib.request
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+import browser
 
 SKILL_DIR = pathlib.Path(__file__).resolve().parent.parent
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -132,7 +138,7 @@ PAGE_JS = """() => {
 def render_page(url):
     from playwright.sync_api import sync_playwright
     with sync_playwright() as pw:
-        br = pw.chromium.launch()
+        br = browser.launch(pw)
         try:
             pg = br.new_page(user_agent=UA, viewport={"width": 1280, "height": 900}, locale="en-US")
             pg.goto(url, wait_until="domcontentloaded", timeout=60000)

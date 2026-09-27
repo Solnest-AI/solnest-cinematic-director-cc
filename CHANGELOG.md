@@ -14,7 +14,15 @@ Carousel mode. The summit design was carousel + video; this adds the carousel ha
   voice, plan shape. Contrast measured on the painted pixels while rendering.
 - `photo_fix.py`: optional Seedream 5.0 Pro polish with a side-by-side and a plain yes.
 - Bundled SIL OFL fonts: Cormorant Garamond, Playfair Display, Montserrat, Inter.
-- Video mode unchanged.
+- The host never runs a command. Every script runs through `uv run`, each declares its own
+  dependencies, and `doctor.py` checks and installs everything (Python packages, a bundled
+  ffmpeg via imageio-ffmpeg, the headless browser, about 200 MB once). The KIE key is found
+  where the STR Secrets Connections kit saved it (`~/.claude.json` KIE server). Video no
+  longer needs ffmpeg or ffprobe on the machine.
+- The host's call to action is saved once in `brand.json` and suggested from their own site.
+- Video: photos now come from `listing_pull.py` (no curl/grep), frames are checked with
+  `clipcheck.py`, and SKILL.md never puts a dollar sign before a digit (Claude Code swaps
+  those for the skill's arguments).
 
 ## 2.0.0 (2026-09-25)
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["imageio-ffmpeg>=0.5"]
+# ///
 """Generate every clip for one walkthrough on KIE Veo 3.1, from a plan file.
 
 The recipe (measured on the Langley and Sun Peaks test runs, 2026-09-20/21):

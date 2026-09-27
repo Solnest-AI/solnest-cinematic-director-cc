@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["playwright==1.60.0", "pillow>=10"]
+# ///
 """Carousel builder for the Solnest Cinematic Director.
 
 Turns plan.json (written by Claude after LOOKING at the photos) into 1080x1350 Instagram
@@ -39,6 +43,8 @@ import time
 import unicodedata
 
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageStat
+
+import browser
 
 SKILL_DIR = pathlib.Path(__file__).resolve().parent.parent
 FONT_DIR = SKILL_DIR / "fonts"
@@ -762,7 +768,7 @@ PANEL_JS = """((r) => { const p = document.getElementById('panel'); if (!p) retu
 
 class Renderer:
     def __init__(self, pw, work, fonts_js):
-        self.br = pw.chromium.launch()
+        self.br = browser.launch(pw)
         self.pg = self.br.new_page(viewport={"width": W, "height": H}, device_scale_factor=2)
         self.work, self.fonts_js, self.n = work, fonts_js, 0
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["imageio-ffmpeg>=0.5"]
+# ///
 """Assemble the generated clips into the finished walkthrough. Python stdlib + ffmpeg.
 
 Timeline (the Langley recipe, 2026-09-21):

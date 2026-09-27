@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["imageio-ffmpeg>=0.5"]
+# ///
 """Crop one listing photo to the video's shape, framed on purpose.
 
 Blind centre crops cut the wrong thing out of a room. Look at the photo, decide where

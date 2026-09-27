@@ -25,20 +25,27 @@ preview plus a plain yes before anything is called done.**
 | One grade across every photo | Mixed phone photos read as one shoot. Remaps tone only, moves no pixel. `"look": "house"` (default) = tone fix + grade, `"levels"` = tone fix only, `"none"` = untouched. |
 | Photo-first, calm type, lots of margin | Upscale feeds: 96px margins, 2 fonts, no page numbers, no handle footer, no "save this" stickers, no pills or badges. |
 
-## What this needs
+## What this needs (you set it all up; the host never runs a command)
 
-1. **Python 3.9+** (`python3`, or `py -3` on Windows).
-2. **Playwright and Pillow**, installed once (about 200 MB, most of it the headless browser):
+The host is in the Claude Code desktop app and will not type commands. Every command here
+is yours to run with your Bash tool (Git Bash on Windows).
+
+1. **uv.** The STR Secrets Connections kit installs it (see SKILL.md, "What this needs",
+   if it is missing: you install it, not the host).
+2. **The doctor, once per session:**
+
    ```bash
-   python3 -m pip install playwright pillow
-   python3 -m playwright install chromium
+   uv run SCRIPTS/doctor.py
    ```
-   Check with `python3 -c "import playwright, PIL"`. If it fails, give the user those two
-   lines and stop until it works.
+
+   It installs the Python packages and the headless browser by itself (about 200 MB the
+   very first time, no admin rights), checks the bundled fonts, and ends with `READY`.
 3. **No API key.** Carousels generate nothing. The KIE key is only needed for the optional
    photo fix at the end.
 
-In every command below, `SCRIPTS` means this skill's `scripts/` folder (absolute path).
+Run every script as `uv run SCRIPTS/<name>.py ...`, never plain `python`. In every command
+below, `SCRIPTS` means this skill's `scripts/` folder (absolute path, in quotes if it has
+spaces).
 
 ## Step 0 - Intake (one message, only what is missing)
 
@@ -56,15 +63,16 @@ In every command below, `SCRIPTS` means this skill's `scripts/` folder (absolute
 Work in `listing-carousels/<property-slug>/` under the current folder.
 
 ```bash
-python3 SCRIPTS/listing_pull.py "<listing url>" listing-carousels/<slug>
+uv run SCRIPTS/listing_pull.py "<listing url>" listing-carousels/<slug>
 ```
 
 This writes `source/full/NN.jpg` (every photo, 2560px), `source/_sheet.jpg` (numbered
 contact sheet), `source/facts.txt` (the listing text) and `source/reviews.json`, in
 about 15 seconds.
 
-- **Folder of photos instead:** `python3 SCRIPTS/listing_pull.py --folder "<photos>" listing-carousels/<slug> --facts description.txt`.
-  Ask the host to paste their listing description into `description.txt` first. Without
+- **Folder of photos instead:** `uv run SCRIPTS/listing_pull.py --folder "<photos>" listing-carousels/<slug> --facts description.txt`.
+  Ask the host to paste their listing description into the chat and write it to
+  `description.txt` yourself first. Without
   it, no slide may claim anything.
 - **Exit code 2** means the site blocked the browser or has too few photos. Tell the host
   exactly what the script printed (it gives the folder-mode fix). Do not guess.
@@ -72,7 +80,7 @@ about 15 seconds.
 ## Step 2 - Brand
 
 ```bash
-python3 SCRIPTS/brand_pull.py "<their website>" listing-carousels/<slug>/brand
+uv run SCRIPTS/brand_pull.py "<their website>" listing-carousels/<slug>/brand
 ```
 
 LOOK at `brand/site.png` and every `brand/logo_candidates/NN.png`, read the colours in
@@ -236,7 +244,7 @@ diptych photo) uses `source/fixed/NN.png` from the optional photo fix.
 ## Step 4 - Check (free, instant)
 
 ```bash
-python3 SCRIPTS/carousel.py listing-carousels/<slug>/plan.json --check
+uv run SCRIPTS/carousel.py listing-carousels/<slug>/plan.json --check
 ```
 
 It checks the plan shape, brand, facts, numbers, review quotes, voice and photo files.
@@ -251,7 +259,7 @@ real gap ("Out back" was never in the listing).
 ## Step 5 - Render
 
 ```bash
-python3 SCRIPTS/carousel.py listing-carousels/<slug>/plan.json
+uv run SCRIPTS/carousel.py listing-carousels/<slug>/plan.json
 ```
 
 It takes 30 to 60 seconds and writes `runs/plan-<time>/` with `slide_01.jpg...`,
@@ -289,8 +297,8 @@ OFFER it ("Photo 16 is dark. I can polish it for about $0.07, want me to?"). Run
 after the host asks or says yes:
 
 ```bash
-python3 SCRIPTS/photo_fix.py source/full/16.jpg --out source/fixed --dry-run
-python3 SCRIPTS/photo_fix.py source/full/16.jpg --out source/fixed [--night 16]
+uv run SCRIPTS/photo_fix.py source/full/16.jpg --out source/fixed --dry-run
+uv run SCRIPTS/photo_fix.py source/full/16.jpg --out source/fixed [--night 16]
 ```
 
 It costs 14 credits (about $0.07) per photo. Show the host `source/fixed/_compare.jpg`

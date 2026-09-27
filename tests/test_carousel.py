@@ -19,41 +19,41 @@ except ImportError:  # pragma: no cover
 if HAVE_PIL:
     import carousel  # noqa: E402  (a broken import must fail loudly, not skip)
 
-# Real review text from Azure Palms (Airbnb 1734384025235879146), as scraped 2026-09-26.
-CARLITA = ("I can’t recommend this place highly enough. The responsiveness was insanely good and "
-           "their place was gorgeous and so well appointed and easy and clean. The amenities in the "
-           "building our first rate. It’s worth the price and more. I especially love the "
-           "sauna/hot tub/cold plunge/pool. My husband and son were obsessed with the golf simulator. "
-           "We had the best time and will stay again.")
+# A made-up review with the shape of real Airbnb review text: a curly apostrophe, a guest's
+# typo ("the building our favourite spot") and more than one quotable sentence.
+JORDAN = ("I can\u2019t say enough good things about this place. The host answered every message within "
+          "minutes and the condo was spotless, bright and easy to settle into. The pool deck in the "
+          "building our favourite spot. It\u2019s worth every penny. The kids spent every afternoon in the "
+          "hot tub. We loved every minute and will be back next summer.")
 REVIEWS = [
-    {"author": "Carlita", "location": "Makawao, Hawaii", "when": "3 weeks ago", "rating": 5, "text": CARLITA},
-    {"author": "Marcy", "location": None, "when": "August 2026", "rating": 5, "text": "Stunning views and very accommodating"},
+    {"author": "Jordan", "location": "Nelson, Canada", "when": "3 weeks ago", "rating": 5, "text": JORDAN},
+    {"author": "Priya", "location": None, "when": "August 2026", "rating": 5, "text": "Great views and a very easy stay"},
     {"author": "Dan", "location": "Calgary, Canada", "when": "July 2026", "rating": 4, "text": "Great view, noisy construction."},
 ]
 FACTS = ("Nine floors above Okanagan Lake, with a resort floor downstairs. Two golf simulators, "
          "sauna, cold plunge. Dryer – In unit. Dogs welcome.")
 
 
-def review_slide(quote, by="Carlita"):
+def review_slide(quote, by="Jordan"):
     return {"t": "review", "quote": quote, "by": by, "claims": []}
 
 
 @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
 class ReviewGate(unittest.TestCase):
     def test_verbatim_excerpt_passes_even_with_straight_quotes(self):
-        q = "I can't recommend this place highly enough."
+        q = "I can't say enough good things about this place."
         self.assertIsNone(carousel.check_review(review_slide(q), REVIEWS))
 
     def test_excerpt_spanning_sentences_passes(self):
-        q = "My husband and son were obsessed with the golf simulator. We had the best time and will stay again."
+        q = "The kids spent every afternoon in the hot tub. We loved every minute and will be back next summer."
         self.assertIsNone(carousel.check_review(review_slide(q), REVIEWS))
 
     def test_tidied_quote_fails(self):
-        q = "The amenities in the building are first rate."  # guest wrote "our first rate"
+        q = "The pool deck in the building is our favourite spot."  # guest wrote "building our favourite"
         self.assertIn("verbatim", carousel.check_review(review_slide(q), REVIEWS))
 
     def test_merged_sentences_fail(self):
-        q = "I can't recommend this place highly enough. We had the best time and will stay again."
+        q = "I can't say enough good things about this place. We loved every minute and will be back next summer."
         self.assertIn("verbatim", carousel.check_review(review_slide(q), REVIEWS))
 
     def test_four_star_review_is_refused(self):
@@ -61,17 +61,17 @@ class ReviewGate(unittest.TestCase):
         self.assertIn("5-star", err)
 
     def test_unknown_author_is_refused(self):
-        self.assertIn("no review", carousel.check_review(review_slide("Stunning views", by="Bob"), REVIEWS))
+        self.assertIn("no review", carousel.check_review(review_slide("Great views and more", by="Bob"), REVIEWS))
 
     def test_no_reviews_at_all(self):
-        self.assertIn("no review", carousel.check_review(review_slide("Stunning views", by="Marcy"), []))
+        self.assertIn("no review", carousel.check_review(review_slide("Great views and more", by="Priya"), []))
 
     def test_overlong_quote_is_refused(self):
-        self.assertIn("too long", carousel.check_review(review_slide(CARLITA), REVIEWS))
+        self.assertIn("too long", carousel.check_review(review_slide(JORDAN), REVIEWS))
 
     def test_attribution_uses_location_only_when_it_is_a_place(self):
-        self.assertEqual(carousel.attribution(REVIEWS[0]), "Carlita, Makawao, Hawaii")
-        self.assertEqual(carousel.attribution(REVIEWS[1]), "Marcy")
+        self.assertEqual(carousel.attribution(REVIEWS[0]), "Jordan, Nelson, Canada")
+        self.assertEqual(carousel.attribution(REVIEWS[1]), "Priya")
 
 
 @unittest.skipUnless(HAVE_PIL, "Pillow not installed")
@@ -275,7 +275,7 @@ class PlanValidation(unittest.TestCase):
     def test_good_plan_loads_and_numbers_slides(self):
         p = carousel.load_plan(self.write(self.base([
             {"t": "cover", "photo": "01", "title": "Nine floors", "claims": ["nine floors"]},
-            {"t": "review", "quote": "Stunning views", "by": "Marcy", "claims": []}])))
+            {"t": "review", "quote": "Great views and a very easy stay", "by": "Priya", "claims": []}])))
         self.assertEqual([s["id"] for s in p["slides"]], ["01", "02"])
         self.assertEqual(p.get("look"), "house")
 

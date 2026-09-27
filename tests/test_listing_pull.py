@@ -18,12 +18,12 @@ except ImportError:  # pragma: no cover
 if HAVE_PIL:
     import listing_pull  # noqa: E402
 
-# innerText of the three review list items on Azure Palms, as rendered 2026-09-26
+# innerText shaped exactly like Airbnb review cards (made-up guests, real card layout)
 ITEMS = [
-    "Carlita\nMakawao, Hawaii\nRating, 5 stars\n,\n·\n3 weeks ago\n,\n·\nStayed with a pet\nI can’t recommend "
-    "this place highly enough. My husband and son were obsessed with the golf simulator.\nShow more",
-    "Marcy\n1 month on Airbnb\nRating, 5 stars\n,\n·\nAugust 2026\n,\n·\nStayed with a pet\nStunning views and "
-    "very accommodating\nShow more",
+    "Jordan\nNelson, Canada\nRating, 5 stars\n,\n·\n3 weeks ago\n,\n·\nStayed with a pet\nI can’t say "
+    "enough good things about this place. The kids loved the hot tub.\nShow more",
+    "Priya\n1 month on Airbnb\nRating, 5 stars\n,\n·\nAugust 2026\n,\n·\nStayed with a pet\nGreat views and "
+    "a very easy stay\nShow more",
     "Dan\n6 years on Airbnb\nRating, 4 stars\n,\n·\nJuly 2026\nGreat view.\n\nNoisy construction next door.\n"
     "Response from host:\nThanks Dan!",
 ]
@@ -34,15 +34,15 @@ LID = "1734384025235879146"
 class Reviews(unittest.TestCase):
     def test_real_items_parse(self):
         r = listing_pull.parse_reviews(ITEMS)
-        self.assertEqual([x["author"] for x in r], ["Carlita", "Marcy", "Dan"])
-        self.assertEqual(r[0]["location"], "Makawao, Hawaii")
+        self.assertEqual([x["author"] for x in r], ["Jordan", "Priya", "Dan"])
+        self.assertEqual(r[0]["location"], "Nelson, Canada")
         self.assertIsNone(r[1]["location"])  # "1 month on Airbnb" is not a place
         self.assertEqual([x["rating"] for x in r], [5, 5, 4])
         self.assertEqual(r[0]["when"], "3 weeks ago")
-        self.assertTrue(r[0]["text"].startswith("I can’t recommend"))
+        self.assertTrue(r[0]["text"].startswith("I can’t say"))
         self.assertNotIn("Show more", r[0]["text"])
         self.assertNotIn("Stayed with a pet", r[1]["text"])
-        self.assertEqual(r[1]["text"], "Stunning views and very accommodating")
+        self.assertEqual(r[1]["text"], "Great views and a very easy stay")
 
     def test_host_response_is_not_part_of_the_review(self):
         r = listing_pull.parse_reviews(ITEMS)[2]

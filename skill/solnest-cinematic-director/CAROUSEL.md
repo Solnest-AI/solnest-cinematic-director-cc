@@ -201,7 +201,7 @@ The photos and the text are.
     {"t": "photo", "photo": "08", "label": "The balcony, over the pool", "claims": ["Private balcony over the pool"]},
     {"t": "diptych", "label": "Inside", "title": "The details",
      "photos": [{"photo": "22", "focal": [0.5, 0.6]}, {"photo": "10"}], "claims": []},
-    {"t": "review", "quote": "My husband and son were obsessed with the golf simulator.", "by": "Carlita"},
+    {"t": "review", "quote": "The kids spent every afternoon on the golf simulator.", "by": "Jordan"},
     {"t": "room", "photo": "16", "label": "Sleeps 4", "title": "Two queens, two full baths",
      "claims": ["Two queen beds", "two full baths"]},
     {"t": "list", "label": "Where you are", "title": "Kelowna, close at hand",

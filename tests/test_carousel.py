@@ -421,6 +421,66 @@ class Brand(unittest.TestCase):
 
 
 
+def _windows(blur=0, size=(1600, 2000)):
+    """A stand-in for a listing photo: rows of hard-edged windows on a wall. blur > 0 is the
+    same photo gone soft (a small original upscaled, or a missed focus)."""
+    from PIL import ImageDraw, ImageFilter
+    im = Image.new("RGB", size, (150, 90, 80))
+    d = ImageDraw.Draw(im)
+    for y in range(120, size[1] - 200, 260):
+        for x in range(100, size[0] - 200, 240):
+            d.rectangle((x, y, x + 150, y + 180), fill=(235, 235, 225))
+            d.rectangle((x + 20, y + 20, x + 130, y + 160), fill=(40, 55, 70))
+    return im.filter(ImageFilter.GaussianBlur(blur)) if blur else im
+
+
+@unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+class Sharpness(unittest.TestCase):
+    """The Sun Peaks cover (a soft winter aerial) shipped looking soft, 2026-09-28."""
+
+    def test_crispness_tells_soft_from_crisp(self):
+        self.assertGreaterEqual(carousel.crispness(_windows()), carousel.SOFT_EDGE)
+        self.assertLess(carousel.crispness(_windows(blur=6)), carousel.SOFT_EDGE)
+
+    def edge_p99(self, path):
+        from PIL import ImageFilter
+        im = Image.open(path).convert("L").resize((1080, 1350), Image.LANCZOS).filter(ImageFilter.FIND_EDGES)
+        hist, need, c = im.histogram(), 0.99 * 1080 * 1350, 0
+        for v, n in enumerate(hist):
+            c += n
+            if c >= need:
+                return v
+
+    def test_soft_photos_are_sharpened_harder_and_look_none_is_untouched(self):
+        from unittest import mock
+        d = pathlib.Path(tempfile.mkdtemp())
+        _windows(blur=6).save(d / "soft.jpg", quality=95)
+        off = (2, 0, 3)  # percent 0: what the builder produced before output sharpening
+        with mock.patch.object(carousel, "SHARPEN_SOFT", off), mock.patch.object(carousel, "SHARPEN_CRISP", off):
+            self.assertTrue(carousel.prep_photo(d / "soft.jpg", {}, 1080 / 1350, d / "off.jpg", "levels"))
+        self.assertTrue(carousel.prep_photo(d / "soft.jpg", {}, 1080 / 1350, d / "on.jpg", "levels"))
+        self.assertGreater(self.edge_p99(d / "on.jpg"), self.edge_p99(d / "off.jpg") * 1.2)
+        with mock.patch.object(carousel, "SHARPEN_SOFT", off), mock.patch.object(carousel, "SHARPEN_CRISP", off):
+            carousel.prep_photo(d / "soft.jpg", {}, 1080 / 1350, d / "n1.jpg", "none")
+        carousel.prep_photo(d / "soft.jpg", {}, 1080 / 1350, d / "n2.jpg", "none")
+        self.assertEqual(Image.open(d / "n1.jpg").tobytes(), Image.open(d / "n2.jpg").tobytes())
+
+    def test_a_soft_cover_fails_the_check_with_the_way_out(self):
+        d = pathlib.Path(tempfile.mkdtemp())
+        (d / "source/full").mkdir(parents=True)
+        _windows(blur=6).save(d / "source/full/01.jpg", quality=95)
+        _windows().save(d / "source/full/02.jpg", quality=95)
+        plan = {"slides": [{"t": "cover", "id": "01", "photo": "01"}]}
+        errs = carousel.check_cover_sharpness(plan, d)
+        self.assertEqual(len(errs), 1)
+        self.assertIn("soft", errs[0])
+        self.assertIn('"source": "fixed"', errs[0])
+        plan["slides"][0]["soft_ok"] = True     # the host declined a crisper photo and the fix
+        self.assertEqual(carousel.check_cover_sharpness(plan, d), [])
+        plan = {"slides": [{"t": "cover", "id": "01", "photo": "02"}, {"t": "room", "id": "02", "photo": "01"}]}
+        self.assertEqual(carousel.check_cover_sharpness(plan, d), [])   # only the cover is held to it
+
+
 def _browser_or_none():
     """A real headless Chromium if this machine has one (the installer puts it there);
     None otherwise, so these tests skip instead of downloading 200 MB."""

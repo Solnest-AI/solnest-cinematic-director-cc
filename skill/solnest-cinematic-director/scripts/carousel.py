@@ -54,6 +54,16 @@ BUSY_EDGE = 14.0        # mean edge strength (0-255) above which "no overlay" is
 MAX_SLIDES = 10
 MAX_QUOTE = 200         # characters; one or two sentences fit the review slide
 MIN_QUOTE = 12
+# Crispness = the 99th percentile of edge strength on the photo as the slide shows it
+# (1080 px wide). Every photo has some strong edges (rooflines, window frames), so this
+# reads how crisp they are, not how busy the scene is. Measured 2026-09-28 on 20 real
+# listing photos: every soft one scored 25-71, every crisp one 109-188.
+SOFT_EDGE = 80
+# Output sharpening at the 2x working size (about 1 px on the slide). An unsharp mask only
+# raises edge contrast already in the photo; it adds nothing. Soft photos get the strong
+# setting; crisp ones a light one, because the strong one clips their edges into halos.
+SHARPEN_SOFT = (3, 100, 3)   # radius px, percent, threshold
+SHARPEN_CRISP = (2, 40, 3)
 
 FONTS = {  # bundled, SIL OFL (fonts/OFL.txt)
     "Cormorant Garamond": {"kind": "display", "roman": "CormorantGaramond.ttf",
@@ -597,17 +607,39 @@ def photo_path(pdir, plan, pid, source=None):
     return base / "fixed" / f"{pid}.png" if source == "fixed" else base / "full" / f"{pid}.jpg"
 
 
-def prep_photo(src, spec, aspect, dest, look):
+def crispness(im):
+    """Edge crispness of a photo at slide size (see SOFT_EDGE)."""
+    small = im.convert("L").resize((W, max(1, round(W * im.size[1] / im.size[0]))), Image.LANCZOS)
+    hist = small.filter(ImageFilter.FIND_EDGES).histogram()
+    need, c = 0.99 * sum(hist), 0
+    for v, n in enumerate(hist):
+        c += n
+        if c >= need:
+            return v
+    return 255
+
+
+def slide_crop(src, spec, aspect):
     im = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
-    im = crop_to(im, *spec.get("focal", (0.5, 0.5)), aspect)
+    return crop_to(im, *spec.get("focal", (0.5, 0.5)), aspect)
+
+
+def prep_photo(src, spec, aspect, dest, look):
+    """Crop, resize, grade and sharpen one photo for a slide. Returns True when it is soft
+    (a small original, or crispness under SOFT_EDGE)."""
+    im = slide_crop(src, spec, aspect)
     tw = W * 2
     th = int(round(tw / aspect))
-    soft = im.size[0] < tw * 0.6
+    crisp = crispness(im)
+    soft = im.size[0] < tw * 0.6 or crisp < SOFT_EDGE
     im = im.resize((tw, th), Image.LANCZOS)
     if look in ("house", "levels"):
         im = levels(im, spec.get("night", False))
     if look == "house":
         im = house_look(im, spec.get("night", False))
+    if look != "none":
+        r, pc, th_ = SHARPEN_SOFT if crisp < SOFT_EDGE else SHARPEN_CRISP
+        im = im.filter(ImageFilter.UnsharpMask(radius=r, percent=pc, threshold=th_))
     im.save(dest, quality=94)
     return soft
 
@@ -838,6 +870,23 @@ def choose_photo_layout(R, s, B, img, logo):
     return a, B["ink"], "panel", 0, r, e, len(tried) + 1
 
 
+def check_cover_sharpness(plan, pdir):
+    """The cover sells the post, so a soft one fails the check (see SOFT_EDGE)."""
+    errs = []
+    for s in plan["slides"]:
+        if s["t"] == "cover" and s.get("photo") and not s.get("soft_ok"):
+            f = photo_path(pdir, plan, s["photo"], s.get("source"))
+            if f.exists():
+                c = crispness(slide_crop(f, s, W / H))
+                if c < SOFT_EDGE:
+                    errs.append(
+                        f"photo: slide {s['id']}: the cover photo {s['photo']} is soft (crispness {c}, needs "
+                        f"{SOFT_EDGE}). The cover sells the post: use a crisper photo, or offer the photo fix "
+                        f"for it (then \"source\": \"fixed\"), or, only if the host declines both, add "
+                        f"\"soft_ok\": true to the cover")
+    return errs
+
+
 def gate(plan, pdir):
     """Everything that can fail before a browser starts. Returns (problems, context)."""
     problems = []
@@ -874,6 +923,7 @@ def gate(plan, pdir):
             f = photo_path(pdir, plan, p["photo"], p.get("source", s.get("source")))
             if not f.exists():
                 problems.append(f"photo: slide {s['id']}: {f} not found")
+    problems += check_cover_sharpness(plan, pdir)
     logo = None
     if B.get("logo"):
         logo = usable_logo((pdir / plan["brand"]).parent / B["logo"])
@@ -989,7 +1039,8 @@ def build(plan_path, check_only=False):
     work.rename(final_dir)
     soft = [r["slide"] for r in report if r.get("soft")]
     if soft:
-        out(f"note: slides {soft} use photos under 1300px wide; they may look soft")
+        out(f"note: slides {soft} use soft photos (small, or crispness under {SOFT_EDGE}); they were sharpened "
+            "harder, and a crisper photo or the photo fix would look better")
     long_ = [f"slide {r['slide']}: {t!r}" for r in report for t in r.get("too_long", [])]
     for l in long_:
         out(f"too long for one line even at {LABEL_MIN_PX}px, shorten it: {l}")

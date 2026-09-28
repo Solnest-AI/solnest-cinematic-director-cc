@@ -185,6 +185,13 @@ The photos and the text are.
   `by` is the author exactly as in `reviews.json`. Never tidy, merge or shorten inside a
   sentence.
 - **Never put `review` and `list` back to back.** Both sit on the accent colour.
+- **The cover must be crisp.** The check measures it and refuses a soft cover (small
+  originals and soft winter aerials are the usual culprits). Fix it in this order: pick a
+  crisper photo that still sells the place; else offer the photo fix for that one photo
+  ("Your best cover shot is soft. I can sharpen it for about 7 cents, want me to?") and use
+  it with `"source": "fixed"`; only if the host says no to both, add `"soft_ok": true` to
+  the cover and tell them it will look soft. Every photo also gets output sharpening
+  automatically (stronger on soft ones), so never sharpen anything yourself.
 - **Never use a photo twice.** Skip photos with people, pets, floor plans, maps or collages.
 - **focal** `[x, y]` (0 to 1) is where the subject sits, so the 4:5 crop keeps it.
   **night: true** on dusk and night photos. **prefer** `"top"` / `"bottom"` / `"mid"` only
@@ -300,8 +307,8 @@ plain yes means done. For changes, edit the plan and render again.
 
 ### Optional: fix a photo (KIE credits, off by default)
 
-Never run this on your own. If a key photo is clearly dark, blown out or crooked, you may
-OFFER it ("Photo 16 is dark. I can polish it for about 7 cents, want me to?"). Run it only
+Never run this on your own. If a key photo is clearly dark, blown out, crooked or soft
+(the check names a soft cover), you may OFFER it ("Photo 16 is dark. I can polish it for about 7 cents, want me to?"). Run it only
 after the host asks or says yes:
 
 ```bash
@@ -311,7 +318,9 @@ after the host asks or says yes:
 
 It costs 14 credits (about 7 cents) per photo. Show the host `source/fixed/_compare.jpg`
 (original next to fixed). Use the fixed photo (`"source": "fixed"`) only if nothing was
-added, moved or removed AND they say yes.
+added, moved or removed AND they say yes. On a soft photo it rebuilds fine detail (window
+frames, railings, car shapes) from the blur: that is fine. Check at full size that every
+building, window, tree and car is still where it was, and that no new object appeared.
 
 ## Step 8 - Deliver
 

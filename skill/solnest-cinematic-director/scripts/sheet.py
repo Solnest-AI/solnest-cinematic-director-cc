@@ -76,7 +76,11 @@ def main(argv=None):
                  for f in files]
         n = len(tiles)
         cols = max(1, min(a.cols, n))
-        tw, th = a.tile, a.tile * 2 // 3
+        # tile shape follows the first picture: 9:16 crops and clips get tall tiles,
+        # listing photos get wide ones, so nothing is shrunk into a letterbox
+        first = probe(tiles[0])
+        tw = a.tile
+        th = a.tile * 16 // 9 if first["h"] > first["w"] else a.tile * 2 // 3
         cmd = [tool("ffmpeg"), "-y", "-v", "error"]
         for p in tiles:
             cmd += ["-i", str(p)]

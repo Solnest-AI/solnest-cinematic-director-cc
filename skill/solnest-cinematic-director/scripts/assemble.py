@@ -83,7 +83,10 @@ def main(argv=None):
             return 1
         used, offsets, total = timeline(durs, a.trim, a.xfade, end_secs)
 
-        norm = (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+        # explicit fit factor: force_original_aspect_ratio=decrease can round up a pixel
+        # and then pad refuses (see sheet.py); a clip one pixel off would kill the render
+        fit = f"min({w}/iw\\,{h}/ih)"
+        norm = (f"scale=iw*{fit}:ih*{fit},"
                 f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={FPS},"
                 "format=yuv420p")
         cmd = [tool("ffmpeg"), "-y", "-v", "error"]

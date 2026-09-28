@@ -79,14 +79,20 @@ def main(argv=None):
         # tile shape follows the first picture: 9:16 crops and clips get tall tiles,
         # listing photos get wide ones, so nothing is shrunk into a letterbox
         first = probe(tiles[0])
-        tw = a.tile
-        th = a.tile * 16 // 9 if first["h"] > first["w"] else a.tile * 2 // 3
+        tw = a.tile // 2 * 2
+        th = (a.tile * 16 // 9 if first["h"] > first["w"] else a.tile * 2 // 3) // 2 * 2
+        # even sizes only: an odd tile height (400 x 711) made ffmpeg die without a message
         cmd = [tool("ffmpeg"), "-y", "-v", "error"]
         for p in tiles:
             cmd += ["-i", str(p)]
+        # fit = the one factor that keeps the picture inside the tile. Written out like
+        # this because scale=W:H:force_original_aspect_ratio=decrease can round UP by a
+        # pixel (711.1 -> 712), and pad then refuses with "Padded dimensions cannot be
+        # smaller than input dimensions" (hit on the first real Windows run, 2026-09-28).
+        fit = f"min({tw}/iw\\,{th}/ih)"
         parts = []
         for i in range(n):
-            parts.append(f"[{i}:v]scale={tw}:{th}:force_original_aspect_ratio=decrease,"
+            parts.append(f"[{i}:v]scale=iw*{fit}:ih*{fit},"
                          f"pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[t{i}]")
         if n == 1:
             graph = parts[0].replace("[t0]", "[out]")

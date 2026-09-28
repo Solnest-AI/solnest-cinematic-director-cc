@@ -26,6 +26,12 @@ import time
 import urllib.error
 import urllib.request
 
+for _stream in (sys.stdout, sys.stderr):      # see media.py: never crash on a non-Latin path
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
 ROOM_ID = re.compile(r"/rooms/(?:plus/)?(\d+)")

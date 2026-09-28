@@ -18,6 +18,14 @@ import sys
 
 ASPECTS = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
 
+# When stdout is a pipe (it always is under Claude Code) Windows Python falls back to the
+# locale code page, and printing a path with a non-Latin user name would then crash.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 SKILL_DIR = pathlib.Path(__file__).resolve().parent.parent
 BIN_DIR = SKILL_DIR / "bin"
 EXE = ".exe" if os.name == "nt" else ""

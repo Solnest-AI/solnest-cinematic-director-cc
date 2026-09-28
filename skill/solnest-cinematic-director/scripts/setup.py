@@ -545,8 +545,7 @@ def main(argv=None):
         print("READY, but the KIE balance is under one video. Top up before making a video"
               + (" (carousels need no credits)." if cok else "."))
         return 0
-    print("ALL SET. The STR Secrets Content Studio is ready: make me a carousel for "
-          "<listing url>, or: make me a Solnest video for <listing url>")
+    print("ALL SET.")   # the README tells Claude what to say next: the green check, then the first run
     return 0
 
 

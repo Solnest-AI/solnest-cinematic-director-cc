@@ -420,5 +420,74 @@ class Brand(unittest.TestCase):
         self.assertIsNotNone(carousel.usable_logo(d / "logo.png"))
 
 
+
+def _browser_or_none():
+    """A real headless Chromium if this machine has one (the installer puts it there);
+    None otherwise, so these tests skip instead of downloading 200 MB."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return None, None
+    pw = sync_playwright().start()
+    try:
+        return pw, pw.chromium.launch()
+    except Exception:
+        pw.stop()
+        return None, None
+
+
+@unittest.skipUnless(HAVE_PIL, "Pillow not installed")
+class OneLineLabels(unittest.TestCase):
+    """The last slide's "Town, BC · Sleeps 4 · ..." line wrapped onto two lines in a real run
+    (Sun Peaks, 2026-09-28). Labels are one line now: fitted, or the slide fails."""
+    B = {"name": "Solnest Stays", "ink": "#1B1B19", "paper": "#F5F1E4", "accent": "#8A8C6D",
+         "on_photo": "#F7F5F0", "display_font": "Cormorant Garamond", "text_font": "Montserrat"}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pw, br = _browser_or_none()
+        if not br:
+            raise unittest.SkipTest("no headless browser here (the installer adds one)")
+        br.close()
+        cls.work = pathlib.Path(tempfile.mkdtemp())
+        Image.new("RGB", (1080, 1350), (40, 60, 90)).save(cls.work / "bg.jpg")
+        from unittest import mock
+        with mock.patch.object(carousel.browser, "launch", lambda pw: pw.chromium.launch()):  # never auto-install
+            cls.R = carousel.Renderer(cls.pw, cls.work, carousel.fonts_ok_js(cls.B, False))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.R.close()
+        cls.pw.stop()
+
+    def render_last(self, line):
+        s = {"t": "last", "line": line, "cta": "Book your stay at solneststays.com"}
+        self.R.shot(carousel.photo_slide(s, self.B, "bg.jpg", "top", self.B["on_photo"], "clean", 0, False, None))
+        return self.R.pg.evaluate("""(() => { const el = document.querySelector('.label');
+          const cs = getComputedStyle(el);
+          return {size: parseFloat(cs.fontSize), track: parseFloat(cs.letterSpacing), overflow: el.scrollWidth - el.clientWidth,
+                  lines: Math.round(el.getBoundingClientRect().height / parseFloat(cs.lineHeight))}; })()""")
+
+    def test_short_line_is_untouched(self):
+        g = self.render_last("Sun Peaks, BC · Sleeps 4")
+        self.assertEqual(self.R.unfit, [])
+        self.assertEqual(g["size"], 26)
+        self.assertAlmostEqual(g["track"], 0.18 * 26, places=1)
+        self.assertEqual(g["lines"], 1)
+
+    def test_the_line_that_wrapped_now_fits_on_one_line(self):
+        g = self.render_last("Sun Peaks Mountain, BC · Sleeps 4 · Ski in, ski out")
+        self.assertEqual(self.R.unfit, [])
+        self.assertEqual(g["lines"], 1)
+        self.assertLessEqual(g["overflow"], 1)
+        self.assertLess(g["track"], 0.18 * 26 - 0.01)          # tracking tightened first
+        self.assertGreaterEqual(g["size"], carousel.LABEL_MIN_PX)
+
+    def test_a_line_that_cannot_fit_is_reported_not_shipped(self):
+        line = "Sun Peaks Mountain, British Columbia · Sleeps 4 · Ski in, ski out · Hot tub"
+        self.render_last(line)
+        self.assertEqual(self.R.unfit, [line])
+
+
 if __name__ == "__main__":
     unittest.main()

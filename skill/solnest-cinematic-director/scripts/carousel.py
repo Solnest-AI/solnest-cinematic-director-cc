@@ -634,7 +634,7 @@ def page(inner, B, bg, hide_text):
 html,body{{width:{W}px;height:{H}px;overflow:hidden;background:{bg}}}
 .slide{{position:relative;width:{W}px;height:{H}px;overflow:hidden}}
 .bgimg{{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}}
-.label{{font-family:'{t}',sans-serif;font-weight:600;font-size:26px;letter-spacing:.18em;text-transform:uppercase;line-height:1.3}}
+.label{{font-family:'{t}',sans-serif;font-weight:600;font-size:26px;letter-spacing:.18em;text-transform:uppercase;line-height:1.3;white-space:nowrap}}
 .title{{font-family:'{d}',serif;font-weight:600;line-height:1.04;text-wrap:balance}}
 .body{{font-family:'{t}',sans-serif;font-weight:500;font-size:34px;line-height:1.45}}
 .wordmark{{font-family:'{d}',serif;font-weight:600;font-size:46px;letter-spacing:.16em;text-transform:uppercase}}
@@ -759,6 +759,25 @@ RECT_JS = """(() => { const b = document.getElementById('blk'); const rects = []
   for (const [x,y,w,h] of rects) { x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x+w); y1=Math.max(y1,y+h); }
   return {box: [x0, y0, x1-x0, y1-y0], rects}; })()"""
 
+# Labels (the small caps lines: kickers, the last slide's "Town, BC · Sleeps 4" line, list
+# values) are one line by design; wrapped, they read as a mistake. Too long for the width:
+# tighten the tracking, then shrink a little, down to LABEL_MIN_PX. Still too long: the text
+# is returned and the slide fails, so a wrapped or clipped label can never ship.
+LABEL_MIN_PX = 20
+FIT_JS = """(() => { const bad = [];
+  for (const el of document.querySelectorAll('.label')) {
+    const box = el.parentElement, base = parseFloat(getComputedStyle(el).fontSize);
+    const over = () => el.scrollWidth > el.clientWidth + 1 || box.scrollWidth > box.clientWidth + 1;
+    if (!over()) continue;
+    let fit = false;
+    for (const [f, ls] of [[1,.14],[1,.10],[.94,.10],[.88,.10],[.82,.08],[.77,.08]]) {
+      if (base * f < %d - 0.01) break;
+      el.style.fontSize = (base * f) + 'px'; el.style.letterSpacing = ls + 'em';
+      if (!over()) { fit = true; break; }
+    }
+    if (!fit) bad.push(el.textContent.trim()); }
+  return bad; })()""" % LABEL_MIN_PX
+
 PANEL_JS = """((r) => { const p = document.getElementById('panel'); if (!p) return false;
   const pad = 36; p.style.left = (r[0]-pad)+'px'; p.style.top = (r[1]-pad)+'px';
   p.style.bottom = 'auto'; p.style.width = (r[2]+2*pad)+'px'; p.style.height = (r[3]+2*pad)+'px'; return true; })"""
@@ -771,6 +790,7 @@ class Renderer:
         self.br = browser.launch(pw)
         self.pg = self.br.new_page(viewport={"width": W, "height": H}, device_scale_factor=2)
         self.work, self.fonts_js, self.n = work, fonts_js, 0
+        self.unfit = []   # labels the last shot could not fit on one line
 
     def shot(self, html_text, panel_fit=False):
         self.n += 1
@@ -779,6 +799,7 @@ class Renderer:
         self.pg.goto(f.as_uri(), wait_until="load")
         if not self.pg.evaluate(self.fonts_js):
             raise RuntimeError("fonts did not load; refusing to render with fallback fonts")
+        self.unfit = self.pg.evaluate(FIT_JS)   # before measuring: contrast is read on the fitted text
         geo = self.pg.evaluate(RECT_JS)
         if panel_fit:
             self.pg.evaluate(PANEL_JS, geo["box"])
@@ -940,7 +961,9 @@ def build(plan_path, check_only=False):
                     col, r, e = pick_text_on(bg, rect, [B["ink"], B["on_photo"]])
                     rep.update(text=col, contrast=r)
                     _, final = R.shot(fn(s, B, col, False))
-                rep["passed"] = rep["contrast"] >= MIN_RATIO
+                if R.unfit:
+                    rep["too_long"] = R.unfit
+                rep["passed"] = rep["contrast"] >= MIN_RATIO and not R.unfit
                 ok_all &= rep["passed"]
                 final.resize((W, H), Image.LANCZOS).save(work / f"slide_{n:02d}.jpg", quality=92)
                 report.append(rep)
@@ -967,7 +990,12 @@ def build(plan_path, check_only=False):
     soft = [r["slide"] for r in report if r.get("soft")]
     if soft:
         out(f"note: slides {soft} use photos under 1300px wide; they may look soft")
-    out(("PASSED" if ok_all else "FAILED (contrast; see report.json)") + f" -> {final_dir}")
+    long_ = [f"slide {r['slide']}: {t!r}" for r in report for t in r.get("too_long", [])]
+    for l in long_:
+        out(f"too long for one line even at {LABEL_MIN_PX}px, shorten it: {l}")
+    why = "; ".join(w for w, bad in (("contrast", any(r.get("contrast", 99) < MIN_RATIO for r in report)),
+                                    ("a line too long", bool(long_))) if bad) or "see report.json"
+    out(("PASSED" if ok_all else f"FAILED ({why}; see report.json)") + f" -> {final_dir}")
     return 0 if ok_all else 1
 
 

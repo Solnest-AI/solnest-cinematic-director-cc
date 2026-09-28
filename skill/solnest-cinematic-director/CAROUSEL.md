@@ -174,6 +174,11 @@ The photos and the text are.
 - **Every number must be in the listing.** Sleeps, bedrooms, baths, minutes, floors:
   digits or words ("four" matches "4"). The check refuses any number the listing does not
   contain. Only the host's own CTA is exempt.
+- **Labels are one line.** Every small caps line (a slide's `label`, the last slide's
+  `line`, a list row's time) must fit on one line: aim for 30 characters or fewer, 40 at the
+  most. The builder tightens the spacing and sets a long one slightly smaller to fit; a line
+  it cannot fit fails the slide with "too long for one line", and you shorten it (drop the
+  weakest part: "Sun Peaks, BC · Sleeps 4" beats cramming three facts in).
 - **Titles** are 7 words or fewer and concrete ("Two golf simulators"). Never use "stunning",
   "luxurious", "oasis" or "retreat" unless the listing says it and it is the point.
 - **Reviews:** copy one or two sentences EXACTLY, including the guest's own spelling.
@@ -269,9 +274,9 @@ It takes 30 to 60 seconds and writes `runs/plan-<time>/` with `slide_01.jpg...`,
 `caption.txt`, `preview.jpg` and `report.json`.
 
 - **Exit 0:** passed every check.
-- **Exit 1:** a slide failed contrast even with the fallbacks. The folder ends in
-  `-FAILED`. Read `report.json`, then change that slide's photo, `focal` or `prefer` and
-  render again.
+- **Exit 1:** a slide failed. The folder ends in `-FAILED` and the last lines say why.
+  Contrast even with the fallbacks: read `report.json`, then change that slide's photo,
+  `focal` or `prefer` and render again. "Too long for one line": shorten that label or line.
 - **Exit 2:** a check failed before rendering. Fix what it printed.
 
 ## Step 6 - Look before you show

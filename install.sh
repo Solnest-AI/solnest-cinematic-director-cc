@@ -1,63 +1,101 @@
 #!/usr/bin/env bash
-# Install the Solnest Cinematic Director into Claude Code (macOS / Linux).
-# Symlinks the skill into ~/.claude/skills/ so `git pull` updates it in place.
-# Windows: copy skill/solnest-cinematic-director into %USERPROFILE%\.claude\skills\ instead.
+# Solnest Content Studio installer (macOS / Linux; on Windows Git Bash it hands off to
+# install.ps1). No admin rights, no PATH edits, nothing to type afterwards. Re-run any
+# time to update or repair; it keeps your .env and the downloaded ffmpeg.
+#
+# Run it from Claude Code's Bash tool, or any terminal:
+#   curl -fsSL https://raw.githubusercontent.com/Solnest-AI/solnest-cinematic-director-cc/main/install.sh | bash
+#
+# What it does: copies the skill into ~/.claude/skills/, finds a Python 3.9+ (or installs
+# one through uv, the same way the STR Secrets Connections kit does), then hands over to
+# scripts/setup.py for ffmpeg, the KIE key, the balance and the launcher.
+set -u
 
-set -euo pipefail
-
-SRC="$(cd "$(dirname "$0")" && pwd)/skill/solnest-cinematic-director"
-DEST="$HOME/.claude/skills/solnest-cinematic-director"
-
-echo "Solnest Cinematic Director installer"
-echo
-
-ok=1
-check() {  # name, command, fix
-  if command -v "$2" >/dev/null 2>&1; then
-    echo "  [ok]   $1"
-  else
-    echo "  [MISS] $1   $3"
-    ok=0
-  fi
-}
-check "ffmpeg " ffmpeg  "macOS: brew install ffmpeg   Linux: sudo apt install ffmpeg"
-check "ffprobe" ffprobe "ships with ffmpeg"
-check "python3" python3 "macOS: brew install python   Linux: sudo apt install python3"
-check "curl   " curl    "required to download listing photos"
-[ -f "$SRC/SKILL.md" ] || { echo "  [MISS] SKILL.md not found at $SRC"; ok=0; }
-
-if [ "$ok" -ne 1 ]; then
-  echo
-  echo "Fix the items marked MISS above, then run this again."
-  exit 1
+REPO="Solnest-AI/solnest-cinematic-director-cc"
+BRANCH="${SOLNEST_BRANCH:-main}"      # override to test a branch
+NAME="solnest-cinematic-director"
+DEST="$HOME/.claude/skills/$NAME"
+HERE=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
-mkdir -p "$HOME/.claude/skills"
-if [ -e "$DEST" ] || [ -L "$DEST" ]; then
-  if [ -L "$DEST" ]; then
-    rm "$DEST"
-  else
-    BK="$DEST.bak-$(date +%Y%m%d-%H%M%S)"
-    mv "$DEST" "$BK"
-    echo "  Existing copy moved to $BK"
-  fi
-fi
-ln -s "$SRC" "$DEST"
-echo
-echo "  Installed: $DEST -> $SRC"
-echo
+OS="$(uname -s)"
+case "$OS" in
+  MINGW*|MSYS*|CYGWIN*)
+    if [ -n "$HERE" ] && [ -f "$HERE/install.ps1" ]; then
+      exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/install.ps1")"
+    fi
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/$REPO/$BRANCH/install.ps1 | iex"
+    ;;
+esac
 
-if python3 "$SRC/scripts/kie.py" --balance; then
-  echo
-  echo "KIE key works."
+echo "Solnest Content Studio installer ($OS)"
+
+# 1. The skill files: a local clone if we are running from one, else the latest zip.
+SRC=""
+TMP=""
+if [ -n "$HERE" ] && [ -f "$HERE/skill/$NAME/SKILL.md" ]; then
+  SRC="$HERE/skill/$NAME"
 else
-  echo
-  echo "One step left: add your KIE key. Open this file (create it if needed):"
-  echo "  $SRC/.env"
-  echo "and add one line:"
-  echo "  KIE_API_KEY=your_key_from_kie.ai"
-  echo "Then check it with:  python3 \"$SRC/scripts/kie.py\" --balance"
+  TMP="$(mktemp -d 2>/dev/null || mktemp -d -t solnest)"
+  echo "  downloading the skill..."
+  if ! curl -fsSL --retry 3 "https://github.com/$REPO/archive/refs/heads/$BRANCH.zip" -o "$TMP/repo.zip"; then
+    echo "ERROR: could not download the skill from GitHub. Check the internet connection and run this again."
+    exit 2
+  fi
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "$TMP/repo.zip" -d "$TMP"
+  else
+    tar -xf "$TMP/repo.zip" -C "$TMP"
+  fi
+  SRC="$(ls -d "$TMP"/solnest-cinematic-director-cc-*/skill/"$NAME" 2>/dev/null | head -1)"
+  if [ -z "$SRC" ] || [ ! -f "$SRC/SKILL.md" ]; then
+    echo "ERROR: the download did not contain the skill folder."
+    exit 2
+  fi
 fi
-echo
-echo "Restart Claude Code, then say:  make me a Solnest video for <listing url>"
-echo "To uninstall:  rm \"$DEST\""
+mkdir -p "$DEST"
+rm -rf "$DEST/scripts"
+cp -R "$SRC/." "$DEST/"
+echo "  skill installed at $DEST"
+
+# 2. A Python that works here (3.9 or newer). On a Mac without the Xcode command line
+#    tools, /usr/bin/python3 is a stub that pops up a dialog, so it is skipped.
+python_ok() { "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; }
+PY=""
+for c in python3 python; do
+  p="$(command -v "$c" 2>/dev/null)" || continue
+  if [ "$OS" = "Darwin" ] && { [ "$p" = "/usr/bin/python3" ] || [ "$p" = "/usr/bin/python" ]; }; then
+    xcode-select -p >/dev/null 2>&1 || continue
+  fi
+  python_ok "$p" && { PY="$p"; break; }
+done
+if [ -z "$PY" ]; then
+  for u in uv "$HOME/.local/bin/uv"; do
+    command -v "$u" >/dev/null 2>&1 || continue
+    p="$("$u" python find 3.13 2>/dev/null)" && python_ok "$p" && { PY="$p"; break; }
+    "$u" python install 3.13 >/dev/null 2>&1
+    p="$("$u" python find 3.13 2>/dev/null)" && python_ok "$p" && { PY="$p"; break; }
+  done
+fi
+if [ -z "$PY" ]; then
+  echo "  installing Python (through uv, no admin needed)..."
+  if ! curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1; then
+    echo "ERROR: could not install uv (https://astral.sh/uv). Check the internet connection and run this again."
+    exit 2
+  fi
+  UV="$HOME/.local/bin/uv"
+  "$UV" python install 3.13 >/dev/null 2>&1
+  p="$("$UV" python find 3.13 2>/dev/null)" && python_ok "$p" && PY="$p"
+fi
+if [ -z "$PY" ]; then
+  echo "ERROR: no working Python 3.9+ was found and the automatic install failed."
+  exit 2
+fi
+
+# 3. Everything else (ffmpeg, the KIE key, the balance, the launcher) is setup.py's job.
+"$PY" "$DEST/scripts/setup.py"
+rc=$?
+[ -n "$TMP" ] && rm -rf "$TMP"
+exit $rc

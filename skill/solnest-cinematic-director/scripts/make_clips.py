@@ -92,6 +92,19 @@ def load_plan(path):
     return plan, base, aspect, duration, beats, ending
 
 
+def select_work(beats, ending, only):
+    """Which beats to generate, and whether the closing shot is. Redoing the final beat
+    always redoes the closing shot too: it is seeded from that beat's last frame."""
+    todo = [b for b in beats if not only or b["name"] in only]
+    do_ending = bool(ending) and (not only or "ending" in only)
+    note = ""
+    if ending and only and beats and beats[-1]["name"] in only and "ending" not in only:
+        do_ending = True
+        note = (f"note: {beats[-1]['name']} is the final beat, so the closing shot is "
+                "regenerated too (it is seeded from that beat's last frame)")
+    return todo, do_ending, note
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -111,8 +124,9 @@ def main(argv=None):
     if unknown:
         print(f"ERROR: --only names not in the plan: {sorted(unknown)}")
         return 1
-    todo = [b for b in beats if not only or b["name"] in only]
-    do_ending = bool(ending) and (not only or "ending" in only)
+    todo, do_ending, note = select_work(beats, ending, only)
+    if note:
+        print(note)
 
     clips_dir = base / "clips"
     run_file = clips_dir / "_run.json"
@@ -151,14 +165,14 @@ def main(argv=None):
         name = b["name"]
         try:
             url = upload(b["_image"], f"{name}{b['_image'].suffix}")
-        except KieError as e:
-            return name, {"ok": False, "error": f"upload: {e}"}
-        r = veo_clip(url, b["prompt"] + HOLD, clips_dir / f"{name}.mp4",
-                     duration=duration, aspect=aspect, label=name)
-        if r.get("ok"):
-            info = probe(clips_dir / f"{name}.mp4")
-            r.update({"res": f"{info['w']}x{info['h']}", "secs": round(info["secs"], 2)})
-        return name, r
+            r = veo_clip(url, b["prompt"] + HOLD, clips_dir / f"{name}.mp4",
+                         duration=duration, aspect=aspect, label=name)
+            if r.get("ok"):
+                info = probe(clips_dir / f"{name}.mp4")
+                r.update({"res": f"{info['w']}x{info['h']}", "secs": round(info["secs"], 2)})
+            return name, r
+        except Exception as e:      # one bad beat must never take the whole run down
+            return name, {"ok": False, "error": f"{type(e).__name__}: {str(e)[:300]}"}
 
     if todo:
         print(f"\ngenerating {len(todo)} clip(s) in parallel (usually 2-3 minutes)...",

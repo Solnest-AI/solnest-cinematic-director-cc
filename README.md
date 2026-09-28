@@ -1,34 +1,57 @@
-# Solnest Cinematic Director (Claude Code edition)
+# Solnest Content Studio (Claude Code)
 
-Paste a listing link. Get back a 25 to 30 second cinematic walkthrough video of the
-property, ready for Instagram or to send to an owner.
-
-About **$2 per video** in KIE credits. No subscription, no Descript, no watermark. The
-clips are generated on KIE (Veo 3.1) and stitched on your own machine with ffmpeg.
+Paste a listing link into Claude Code. Get back an on-brand **Instagram carousel** of the
+property (free), or a 25 to 30 second **cinematic walkthrough video** (about $2 in KIE
+credits). Everything runs on your own computer. You never type a command.
 
 Built by Ryan Lefebvre / **Solnest AI**. Free to use.
 
 ---
 
-## Install (about 5 minutes)
+## Claude: someone pasted this link and said "set this up"
 
-You need [Claude Code](https://claude.com/claude-code). Open it and paste this:
+Do exactly this, one step per message. You run every command yourself with your Bash tool
+(Windows without Git Bash: your PowerShell tool). The person never opens a terminal and
+never types a command. Never ask for an API key in the chat, and never print one.
 
-> Install the Solnest Cinematic Director from https://github.com/Solnest-AI/solnest-cinematic-director-cc. Follow the "Claude: install steps" section of its README exactly.
+1. Tell them in one line: "Setting up the Solnest Content Studio: about two minutes,
+   nothing for you to do."
+2. Run the installer for their computer, with a 15 minute tool timeout (the first run
+   downloads ffmpeg and a headless browser):
+   - **Windows** (from Bash or PowerShell):
+     `powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/Solnest-AI/solnest-cinematic-director-cc/main/install.ps1 | iex"`
+   - **Mac:**
+     `curl -fsSL https://raw.githubusercontent.com/Solnest-AI/solnest-cinematic-director-cc/main/install.sh | bash`
+3. Show them the checklist it printed, then:
+   - **`ALL SET`:** tell them to quit and reopen Claude Code, then say
+     **make me a carousel for &lt;listing link&gt;** or **make me a Solnest video for &lt;listing link&gt;**.
+   - **`[!!] KIE key`:** only needed for videos. The installer created a `.env` file and
+     opened it. They get a key at https://kie.ai/api-key (sign in with Google, Create New
+     Key), paste it after `KIE_API_KEY=`, save, and tell you "saved". Run step 2 again.
+   - **`[!!] balance` under 455 credits:** one video is about 455 credits ($2.28). They top
+     up at https://kie.ai/billing ($5 minimum). Say it once; carousels do not need credits.
+   - **`[!!] carousels` or `[!!] ffmpeg`:** usually the network. Run step 2 once more.
+   - **`ERROR: no working Python`:** run step 2 once more. If it repeats, send the full
+     output to Ryan (ryan.lefebvre@strsecrets.com).
 
-Claude does the rest and tells you if anything is missing.
+To update or repair later, run step 2 again: it keeps the `.env` and the downloaded ffmpeg.
+Full detail: [INSTALL.md](INSTALL.md).
+
+---
 
 ### What you need
 
 | Thing | What it does | Cost |
 |---|---|---|
-| **KIE API key** ([kie.ai](https://kie.ai/api-key)) | Generates the video clips | Pay as you go, $5 minimum, about $2 per video |
-| **ffmpeg** | Joins the clips on your machine | Free |
-| **Python 3.9+** | Runs the helper scripts (no packages to install) | Free |
+| **KIE API key** ([kie.ai](https://kie.ai/api-key)) | Generates the video clips (carousels need no key) | Pay as you go, $5 minimum, about $2 per video |
+| **ffmpeg** | Joins the clips on your machine | Free. Downloaded for you |
+| **Python 3.9+** and **uv** | Run the helper scripts (carousels also use Pillow and Playwright, which uv fetches) | Free. Found or installed for you |
+| Headless browser (carousels) | Reads the listing and your site, renders the slides | Free. Installed for you (about 200 MB once) |
 | Firecrawl MCP (optional) | Reads non-Airbnb listing pages | Free plan is fine |
 
-Your KIE key goes in a file called `.env` inside the skill folder, one line:
-`KIE_API_KEY=your_key`. **Never paste a key into the chat.**
+Your KIE key lives in a file called `.env` inside the skill folder, one line:
+`KIE_API_KEY=your_key`. If you set up the STR Secrets Connections kit, the installer
+copies it from there. **Never paste a key into the chat.**
 
 ---
 
@@ -47,6 +70,19 @@ It asks what the video is for (Instagram = vertical 9:16, owner or website = 16:
 5. shows you the cost, then generates the clips in parallel (2 to 3 minutes),
 6. adds a closing shot that continues the last clip seamlessly,
 7. stitches everything into one MP4 in `listing-walkthroughs/<property>/final/`.
+
+### Carousels
+
+```
+make me a carousel for https://www.airbnb.com/rooms/...
+```
+
+It asks for your website (for your colours, fonts and logo) and your call to action once,
+then pulls every photo, the listing text and the guest reviews, plans 8 or 9 slides (the
+thing that sets you apart, amenities, details, bedrooms, a real 5-star guest quote,
+location, your closing line), checks every word and number against your listing before it
+renders anything, and shows you a preview and the caption. Your photos are never AI-edited
+unless you ask. Free: nothing is generated.
 
 ## The recipe, and why
 
@@ -83,45 +119,42 @@ in Instagram. Details in
 
 ---
 
-## Claude: install steps
+## How the install works (for the curious)
 
-Follow these in order. Stop and tell the user plainly if a step fails.
-
-1. **Clone** this repo somewhere permanent, for example `~/solnest-cinematic-director-cc`
-   (Windows: `%USERPROFILE%\solnest-cinematic-director-cc`).
-2. **Put the skill where Claude Code finds it.**
-   - macOS / Linux: run `./install.sh` from the repo folder. It checks ffmpeg and Python
-     and symlinks `skill/solnest-cinematic-director` into `~/.claude/skills/`.
-   - Windows: copy the folder `skill\solnest-cinematic-director` to
-     `%USERPROFILE%\.claude\skills\solnest-cinematic-director` (copy, not a symlink).
-3. **ffmpeg.** Check `ffmpeg -version`. If missing: macOS `brew install ffmpeg`,
-   Windows `winget install --id Gyan.FFmpeg -e`, Linux `sudo apt install ffmpeg`.
-   The user must reopen the terminal afterwards.
-4. **Python.** Check `python3 --version` (Windows: `py -3 --version`). 3.9 or newer.
-   On Windows, do not type bare `python` if it opens the Microsoft Store.
-5. **KIE key.** If `KIE_API_KEY` is not already set, create
-   `<skills folder>/solnest-cinematic-director/.env` and ask the user to open it and add
-   `KIE_API_KEY=their_key` themselves. Do not ask for the key in chat. Do not print it.
-6. **Verify:** run `python3 <skills folder>/solnest-cinematic-director/scripts/kie.py --balance`
-   (Windows: `py -3 ...`). It must print the balance. Under 455 credits means they need to
-   top up before their first 30 second video.
-7. Tell the user to **restart Claude Code**, then say
-   `make me a Solnest video for <listing url>`.
+- `install.ps1` (Windows) and `install.sh` (Mac/Linux) copy `skill/solnest-cinematic-director`
+  into `~/.claude/skills/`, find a Python 3.9+ (a real one, never the Microsoft Store stub;
+  on a Mac never the Xcode stub), or install one through [uv](https://astral.sh/uv), then
+  hand over to `scripts/setup.py`.
+- `setup.py` reuses ffmpeg if the machine has it, otherwise downloads it into the skill's
+  `bin/` folder from the first mirror that works (gyan.dev, BtbN and ffmpeg-static on
+  GitHub for Windows; ffmpeg-static on GitHub and martin-riedl.de for Mac, Apple Silicon
+  and Intel). It writes a launcher, `bin/py`, so every command in the skill runs through
+  the same Python on every machine. It looks for the KIE key in the skill's `.env`, in the
+  environment, and in the STR Secrets Connections kit (through the `kie` server registered
+  in `~/.claude.json`, or the kit folder on the Desktop, Documents or Downloads), and copies
+  it into the skill's `.env`. Then it checks the balance: 455 credits is one video.
+- For carousels, `setup.py` installs [uv](https://astral.sh/uv) if it is missing (per user,
+  no admin), writes `bin/uv` so the skill never depends on PATH, and runs
+  `scripts/doctor.py` through it once. uv fetches Pillow and Playwright (pinned in each
+  script's header) into its own cache, and doctor.py downloads the headless browser
+  (about 200 MB, once). If that step fails, videos still work and the checklist says so.
+- Nothing is installed system-wide and nothing needs admin rights.
 
 ## Update
 
-`git pull` in the repo folder (macOS/Linux, symlinked). On Windows, pull, then copy the
-skill folder over the installed one again. Your `.env` is not in the repo, so re-copy it
-if you replaced the folder.
+Paste this repo link into Claude Code again and say "update this". Claude reruns the
+installer, which replaces the scripts and keeps your `.env`, ffmpeg and the headless browser.
 
 ## For developers
 
 ```bash
-python3 -m unittest discover -s tests -v
+uv run --no-project --with pillow --with playwright==1.60.0 python -m unittest discover -s tests -v
+./install.sh                                  # install from this clone (Windows: .\install.ps1)
 ```
 
-Offline tests, no network and no credits. The scripts are Python standard library plus
-ffmpeg, and print ASCII only so they cannot crash a Windows console.
+The tests are offline: no network, no credits. Without Pillow the carousel tests skip.
+The video scripts are Python standard library plus ffmpeg; the carousel scripts run
+through uv. All of them print ASCII only so they cannot crash a Windows console.
 
 ---
 

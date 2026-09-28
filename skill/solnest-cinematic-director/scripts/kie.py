@@ -26,6 +26,12 @@ import time
 import urllib.error
 import urllib.request
 
+for _stream in (sys.stdout, sys.stderr):      # see media.py: never crash on a non-Latin path
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 API = "https://api.kie.ai/api/v1"
 UPLOAD_URL = "https://kieai.redpandaai.co/api/file-base64-upload"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -59,8 +65,48 @@ def _read_env_file(path):
     return vals
 
 
+KIT_FOLDER = "str-secrets-connections"
+
+
+def kit_env_paths():
+    """Where the STR Secrets Connections kit keeps the attendee's .env. The kit registers
+    its `kie` server in ~/.claude.json with KIE_ENV_PATH pointing at that file; the usual
+    folders are scanned too, in case the server was never registered."""
+    out = []
+    home = pathlib.Path.home()
+    try:
+        data = json.loads((home / ".claude.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    servers = list((data.get("mcpServers") or {}).values())
+    for proj in (data.get("projects") or {}).values():
+        if isinstance(proj, dict):
+            servers += list((proj.get("mcpServers") or {}).values())
+    for spec in servers:
+        env = spec.get("env") if isinstance(spec, dict) else None
+        p = (env or {}).get("KIE_ENV_PATH")
+        if isinstance(p, str) and p:
+            out.append(pathlib.Path(p))
+    for base in (home / "Desktop", home / "Documents", home / "Downloads",
+                 home / "OneDrive" / "Desktop", home / "OneDrive" / "Documents", home):
+        try:
+            for pattern in (f"{KIT_FOLDER}*", f"*/{KIT_FOLDER}*"):
+                out += [d / ".env" for d in sorted(base.glob(pattern)) if d.is_dir()]
+        except OSError:
+            pass
+    seen, uniq = set(), []
+    for p in out:
+        if str(p) not in seen:
+            seen.add(str(p))
+            uniq.append(p)
+    return uniq
+
+
 def key_search_paths():
-    return [SKILL_DIR / ".env", pathlib.Path.cwd() / ".env", pathlib.Path.home() / ".env"]
+    return ([SKILL_DIR / ".env", pathlib.Path.cwd() / ".env", pathlib.Path.home() / ".env"]
+            + kit_env_paths())
 
 
 def find_key():
@@ -96,9 +142,19 @@ def call(path, body=None, timeout=120):
                                  method="POST" if body is not None else "GET")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            payload = json.loads(r.read().decode("utf-8"))
+            raw = r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         raise KieError(f"HTTP {e.code} from KIE {path}") from e
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise KieError(f"cannot reach KIE at api.kie.ai ({getattr(e, 'reason', e)}). "
+                       "Check the internet connection and try again.") from e
+    try:
+        payload = json.loads(raw)
+    except ValueError as e:
+        raise KieError(f"KIE {path} answered with something that is not JSON "
+                       f"({raw[:80]!r}). Try again in a minute.") from e
+    if not isinstance(payload, dict):
+        raise KieError(f"KIE {path} answered with unexpected JSON")
     # The whole point: HTTP 200 does NOT mean success. The real status is in the body.
     code = payload.get("code")
     if code not in (200, None):
@@ -200,7 +256,7 @@ def veo_clip(image_url, prompt, dest, *, duration=6, aspect="9:16", resolution="
             size = download(urls[0], dest)     # ~14-day expiry: grab it now
             return {"ok": True, "task": tid, "attempt": attempt,
                     "seconds": round(time.time() - t0, 1), "bytes": size, "file": str(dest)}
-        except (KieError, urllib.error.URLError, TimeoutError, OSError) as e:
+        except (KieError, urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
             last_err = e
             print(f"  {label} attempt {attempt} failed: {e}", flush=True)
             if attempt < attempts:

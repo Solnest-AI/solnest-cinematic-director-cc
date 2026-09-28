@@ -5,3 +5,9 @@ __pycache__/
 .DS_Store
 listing-walkthroughs/
 *.mp4
+*.part
+skill/solnest-cinematic-director/bin/
+
+# Windows PowerShell cache written into the repo by accident once
+Microsoft/
+listing-carousels/

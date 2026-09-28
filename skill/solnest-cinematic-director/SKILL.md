@@ -1,19 +1,17 @@
 ---
 name: solnest-cinematic-director
 description: >-
-  Solnest AI's cinematic video director turns a short-term-rental listing (an
-  Airbnb/VRBO/Zillow URL or a folder of property photos) into ONE polished 25-30 second
-  cinematic walkthrough video, end to end, on your own machine, for about $2 of KIE
-  credits. Use this skill whenever the user wants a listing video, property walkthrough,
-  STR reel, real estate video, "make a video for this listing", "make me a Solnest
-  video", "cinematic walkthrough", "turn this Airbnb into a video", "Solnest reel",
-  "direct this listing", a video to send an owner or prospect, or any request to animate
-  property photos into a moving tour. Also trigger when the user pastes a listing link or
-  a photo folder and asks for video or marketing content, or wants a 9:16 reel or a 16:9
-  website video of a property. It pulls the photos, curates 5-6 beats by eye, crops each
-  one on purpose, generates one Veo 3.1 clip per beat on KIE from a single anchor frame,
-  adds a seamless closing shot, and assembles everything locally with ffmpeg into a
-  finished MP4.
+  Solnest AI's listing content director for short-term rentals. Turns an
+  Airbnb/VRBO/Zillow link or a folder of property photos into ONE cinematic 25-30 second
+  walkthrough video (Veo 3.1 on KIE, about USD 2, assembled locally with ffmpeg) OR an
+  on-brand 7-10 slide Instagram carousel (real listing photos graded as one shoot, the
+  host's own colours, fonts and logo from their website, a verbatim 5-star guest review,
+  every claim checked against the listing, free). Use this skill whenever the user wants a
+  listing video, property walkthrough, STR reel, "make a video for this listing", "make me
+  a Solnest video", "cinematic walkthrough", an Instagram carousel, "make a carousel for
+  this listing", carousel slides or a carousel post for a property, a 9:16 reel or a 16:9
+  website video, or pastes a listing link or a photo folder and asks for social or
+  marketing content. Carousels follow CAROUSEL.md in this folder; videos follow this file.
 allowed-tools: [Read, Write, Bash, PowerShell, Glob, Grep, AskUserQuestion, mcp__firecrawl__firecrawl_scrape, mcp__firecrawl__firecrawl_extract]
 ---
 
@@ -25,6 +23,13 @@ listing and deliver one finished walkthrough video, start to finish.
 Everything here was measured on real listings (Sun Peaks cabin, Langley 66-acre farm,
 2026-09-20/21) before it became a rule. Follow the rules even when another approach
 looks clever. The clever approaches are the ones that failed.
+
+## Two modes: video or carousel
+
+- **Video** (a reel, walkthrough, Veo clip): follow this file.
+- **Carousel** (Instagram slides, a carousel post): read `CAROUSEL.md` in this skill's
+  folder and follow it instead. It needs no API key and costs nothing.
+- Both, or unclear: ask once, "A video, a carousel, or both?"
 
 ## The framework in one breath
 
@@ -40,7 +45,7 @@ end on a shot that continues the last one.**
 | Crossfade the joins in ffmpeg | Generated "bridge" and "walk out the window" clips lost to a free 0.6s crossfade every time. |
 | Look at the photos yourself | The listing scrape labelled every room wrong on the Langley farm, confidently. |
 | Crop each photo by hand | Blind centre crops cut the subject out of the room. |
-| Veo 3.1 on KIE | $0.325 flat per clip at 4, 6 or 8s, 1080p, about 2-3 minutes. 28% cheaper than Kling for the same beats, and pay-as-you-go with no subscription. |
+| Veo 3.1 on KIE | USD 0.325 flat per clip at 4, 6 or 8s, 1080p, about 2-3 minutes. 28% cheaper than Kling for the same beats, and pay-as-you-go with no subscription. |
 
 ## How to run things here
 
@@ -50,7 +55,9 @@ whichever one `setup.py` found (on most summit machines, the uv Python the STR S
 Connections kit installed), and the KIE key sits in this skill's `.env` (copied over
 from the kit's `.env` when it was there).
 
-Three absolute paths, used in every command below:
+Three absolute paths, used in every command below (prices in this file are written as
+"USD 2" on purpose: Claude Code swaps a dollar sign followed by a digit in a SKILL.md for
+the words the skill was called with):
 
 | Name | Bash (Mac, and Windows through Git Bash) | Windows PowerShell (only when there is no Git Bash) |
 |---|---|---|
@@ -98,7 +105,7 @@ ask before spending anything.
 2. **What it is for** (ask once, unless they said):
    - **Instagram / Reels / TikTok** -> 9:16
    - **Sending to an owner or prospect, a website, an email, YouTube** -> 16:9
-   - Both -> two runs, about $4. Framing is baked into each clip, so never pad one
+   - Both -> two runs, about USD 4. Framing is baked into each clip, so never pad one
      shape into the other.
 3. Preflight, before anything costs money:
 
@@ -112,7 +119,7 @@ checklist to the user. Go on only when every line is `[ok]`:
 
 - `[!!] KIE key`: give the one-line fix above and stop.
 - `[!!] balance` under 455 credits (390 for a 5-beat video): tell them to top up at
-  https://kie.ai/billing ($5 minimum, about $2.28 per video) and stop.
+  https://kie.ai/billing (USD 5 minimum, about USD 2.28 per video) and stop.
 - `[!!] balance ... cannot reach`: the internet is down; try again in a minute.
 - `[!!] ffmpeg`: run setup once more (it tries several mirrors). Still failing: print
   the manual line it gives and stop.
@@ -299,8 +306,8 @@ listing-walkthroughs/<property-slug>/
 
 ## Cost and time
 
-- 65 credits ($0.325) per clip. 6 beats + closing = 455 credits (about $2.28);
-  5 beats + closing = 390 credits (about $1.95).
+- 65 credits (USD 0.325) per clip. 6 beats + closing = 455 credits (about USD 2.28);
+  5 beats + closing = 390 credits (about USD 1.95).
 - Failed generations can still bill. `_run.json` records the real spend.
 - 2-3 minutes of generation in parallel, a few seconds to assemble.
 - Generated media on KIE expires after about 14 days. The script downloads it at once.

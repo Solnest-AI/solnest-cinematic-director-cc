@@ -4,6 +4,23 @@
 
 Windows-ready, zero-terminal install for the STR Secrets summit Content Studio.
 
+- Carousel mode (CAROUSEL.md): a listing link becomes an on-brand 8 or 9 slide Instagram
+  carousel, free. `listing_pull.py` pulls every photo, the listing text and the guest
+  reviews; `brand_pull.py` reads the host's colours, fonts and logo off their site;
+  `carousel.py` renders 1080x1350 slides and refuses to render copy it cannot back: every
+  word and number must come from the listing, the review slide must quote a real 5-star
+  review verbatim, and every text line must pass a 4.5:1 contrast check measured on the
+  photo behind it. The closing line comes from each host's own `brand.json`.
+  `photo_fix.py` (optional, about 14 credits a photo) straightens and relights photos
+  without adding anything.
+- The carousel scripts run through uv (PEP 723 headers pin Playwright and Pillow), so
+  nothing is installed into the system Python. `setup.py` installs uv if it is missing,
+  writes the `bin/uv` and `bin/uv.cmd` launchers, and runs `doctor.py` to fetch the
+  headless browser once. A `carousels` row joins the checklist; a failure there never
+  blocks videos.
+- README.md opens with the steps for Claude, so pasting the repo link into Claude Code
+  and saying "set this up" is enough.
+
 - One-line install pasted into Claude Code (INSTALL.md). `install.ps1` / `install.sh`
   copy the skill into `~/.claude/skills/`, find a Python 3.9+ or install one through uv
   (the same way the STR Secrets Connections kit does), then run `setup.py`. Re-run to update.

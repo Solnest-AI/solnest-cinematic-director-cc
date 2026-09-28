@@ -290,6 +290,102 @@ def write_launchers():
     return sh, cmd
 
 
+# ---------------------------------------------------------------- carousels
+
+SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent
+
+UV_SH = """#!/bin/sh
+# uv launcher for the Solnest carousel scripts, written by scripts/setup.py.
+U="{uv}"
+if [ -x "$U" ]; then exec "$U" "$@"; fi
+for u in uv "$HOME/.local/bin/uv"; do
+  command -v "$u" >/dev/null 2>&1 && exec "$u" "$@"
+done
+echo "ERROR: uv not found. Re-run the installer." >&2
+exit 1
+"""
+
+UV_CMD = """@echo off
+rem uv launcher for the Solnest carousel scripts (PowerShell / cmd), written by scripts\\setup.py.
+set "U={uv}"
+if exist "%U%" goto run
+where uv >nul 2>&1 && goto onpath
+if exist "%USERPROFILE%\\.local\\bin\\uv.exe" goto home
+echo ERROR: uv not found. Re-run the installer. 1>&2
+exit /b 1
+:run
+"%U%" %*
+exit /b %errorlevel%
+:onpath
+uv %*
+exit /b %errorlevel%
+:home
+"%USERPROFILE%\\.local\\bin\\uv.exe" %*
+exit /b %errorlevel%
+"""
+
+
+def find_uv():
+    exe = "uv.exe" if os.name == "nt" else "uv"
+    found = shutil.which("uv")
+    for c in ([pathlib.Path(found)] if found else []) + [pathlib.Path.home() / ".local" / "bin" / exe,
+                                                         pathlib.Path.home() / ".cargo" / "bin" / exe]:
+        if c.exists():
+            return c
+    return None
+
+
+def install_uv():
+    """uv's official per-user installer (no admin), the same one the STR Secrets
+    Connections kit uses. A fresh install is not on PATH yet, so it is found by path."""
+    if os.name == "nt":
+        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "ByPass", "-c",
+               "irm https://astral.sh/uv/install.ps1 | iex"]
+    else:
+        cmd = ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"]
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return find_uv()
+
+
+def write_uv_launchers(uv):
+    """bin/uv (sh, for Mac and Git Bash) and bin/uv.cmd (Windows): the carousel commands
+    in CAROUSEL.md call these, so they work before uv is on PATH."""
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    sh = BIN_DIR / "uv"
+    with open(sh, "w", encoding="utf-8", newline="\n") as f:
+        f.write(UV_SH.replace("{uv}", pathlib.Path(uv).as_posix()))
+    make_executable(sh)
+    with open(BIN_DIR / "uv.cmd", "w", encoding="utf-8", newline="\r\n") as f:
+        f.write(UV_CMD.replace("{uv}", str(uv)))
+    return sh
+
+
+def ensure_carousel(offline=False):
+    """Carousels need Pillow, Playwright and a headless browser, which uv installs from the
+    scripts' own headers. doctor.py does the work (about 200 MB the first time). A failure
+    here never blocks videos. Returns (ok, text)."""
+    uv = find_uv() or (None if offline else install_uv())
+    if not uv:
+        return False, "uv could not be installed (carousels only). Run this setup again."
+    write_uv_launchers(uv)
+    if offline:
+        return True, f"uv {pathlib.Path(uv).as_posix()} (browser check skipped: offline)"
+    try:
+        r = subprocess.run([str(uv), "run", str(SCRIPTS_DIR / "doctor.py")], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", timeout=1200)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f"carousel setup did not finish ({e.__class__.__name__}). Run this setup again."
+    if r.returncode == 0:
+        return True, "packages, headless browser and fonts ready"
+    out = (r.stdout or "") + "\n" + (r.stderr or "")
+    fails = [l[len("[failed] "):] for l in out.splitlines() if l.startswith("[failed]")]
+    last = fails[0] if fails else (out.strip().splitlines() or ["unknown error"])[-1]
+    return False, last[:200] + " (run this setup again)"
+
+
 # ---------------------------------------------------------------- KIE key
 
 ENV_HEADER = ("# Solnest Cinematic Director. Paste your KIE key after the equals sign, save, done.\n"
@@ -415,8 +511,13 @@ def main(argv=None):
             row(True, "balance", f"{c:.0f} credits (${c * kie.USD_PER_CREDIT:.2f}) = about "
                                  f"{int(c // VIDEO_CREDITS)} video(s)")
 
+    cok, ctext = ensure_carousel(a.offline)
+    row(cok, "carousels", ctext)
+
     print("\n".join(rows))
     print()
+    if not cok:
+        print("Carousels are not ready yet (videos are not affected): " + ctext)
     if "python" in problems:
         print("NOT READY: this Python is too old. Re-run the installer from INSTALL.md; it "
               "installs a current one.")
@@ -427,14 +528,17 @@ def main(argv=None):
               "install --id Gyan.FFmpeg -e, then restart Claude Code and run this again.")
         return 2
     if "key" in problems:
-        print("ONE THING LEFT: the KIE key. Paste it into the .env file after KIE_API_KEY=, "
-              "save, then run this setup again. Never paste the key into the chat.")
+        if cok:
+            print("CAROUSELS READY (they need no key): say make me a carousel for <listing url>.")
+        print("ONE THING LEFT for videos: the KIE key. Paste it into the .env file after "
+              "KIE_API_KEY=, save, then run this setup again. Never paste the key into the chat.")
         return 1
     if low_balance:
-        print("READY, but the KIE balance is under one video. Top up before making a video.")
+        print("READY, but the KIE balance is under one video. Top up before making a video"
+              + (" (carousels need no credits)." if cok else "."))
         return 0
     print("ALL SET. Quit and reopen Claude Code, then say: make me a Solnest video for "
-          "<listing url>")
+          "<listing url>, or: make me a carousel for <listing url>")
     return 0
 
 

@@ -12,6 +12,7 @@ Usage:
 Always start from the largest original you have (Airbnb: ?im_w=2560).
 """
 import argparse
+import pathlib
 import sys
 
 from media import ASPECTS, MediaError, probe, run, tool
@@ -49,6 +50,7 @@ def main(argv=None):
         info = probe(a.src)
         cw, ch, cx, cy = crop_box(info["w"], info["h"], a.aspect, a.x, a.y, a.zoom)
         tw, th = ASPECTS[a.aspect]
+        pathlib.Path(a.dst).parent.mkdir(parents=True, exist_ok=True)  # crops/ on a first run
         run([tool("ffmpeg"), "-y", "-v", "error", "-i", a.src,
              "-vf", f"crop={cw}:{ch}:{cx}:{cy},scale={tw}:{th}:flags=lanczos",
              "-q:v", "2", a.dst])

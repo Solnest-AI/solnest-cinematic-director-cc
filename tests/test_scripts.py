@@ -45,6 +45,19 @@ class CropBox(unittest.TestCase):
         b = crop.crop_box(2560, 1706, "9:16", zoom=1.25)
         self.assertLess(b[0], a[0])
 
+    def test_creates_the_output_folder(self):
+        # SKILL.md crops into crops/01.jpg on a fresh property folder; ffmpeg will not
+        # create crops/ itself, so a first run failed until crop.py made it.
+        with tempfile.TemporaryDirectory() as t:
+            dst = pathlib.Path(t) / "crops" / "01.jpg"
+            seen = []
+            with mock.patch.object(crop, "probe", return_value={"w": 2560, "h": 1706}), \
+                    mock.patch.object(crop, "tool", return_value="ffmpeg"), \
+                    mock.patch.object(crop, "run", side_effect=lambda cmd: seen.append(dst.parent.is_dir())), \
+                    mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(crop.main(["in.jpg", str(dst), "--aspect", "9:16"]), 0)
+            self.assertEqual(seen, [True])
+
 
 class Timeline(unittest.TestCase):
     def test_langley_recipe_is_exactly_30s(self):

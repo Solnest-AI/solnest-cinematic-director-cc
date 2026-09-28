@@ -296,6 +296,12 @@ SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent
 
 UV_SH = """#!/bin/sh
 # uv launcher for the Solnest carousel scripts, written by scripts/setup.py.
+# Windows (Git Bash): uv's default Python home is under AppData, which the Claude desktop app
+# (a Microsoft Store app) silently redirects, and `uv python install` fails there. Keep
+# Python under the profile, as the STR Secrets connections kit does.
+if [ -n "${USERPROFILE:-}" ] && [ -z "${UV_PYTHON_INSTALL_DIR:-}" ]; then
+  export UV_PYTHON_INSTALL_DIR="$USERPROFILE\\.uv\\python"
+fi
 U="{uv}"
 if [ -x "$U" ]; then exec "$U" "$@"; fi
 for u in uv "$HOME/.local/bin/uv"; do
@@ -307,6 +313,7 @@ exit 1
 
 UV_CMD = """@echo off
 rem uv launcher for the Solnest carousel scripts (PowerShell / cmd), written by scripts\\setup.py.
+if not defined UV_PYTHON_INSTALL_DIR set "UV_PYTHON_INSTALL_DIR=%USERPROFILE%\\.uv\\python"
 set "U={uv}"
 if exist "%U%" goto run
 where uv >nul 2>&1 && goto onpath
@@ -374,8 +381,11 @@ def ensure_carousel(offline=False):
     if offline:
         return True, f"uv {pathlib.Path(uv).as_posix()} (browser check skipped: offline)"
     try:
+        env = dict(os.environ)
+        if os.name == "nt":   # see UV_SH: keep uv's Python out of the redirected AppData
+            env.setdefault("UV_PYTHON_INSTALL_DIR", str(pathlib.Path.home() / ".uv" / "python"))
         r = subprocess.run([str(uv), "run", str(SCRIPTS_DIR / "doctor.py")], capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", timeout=1200)
+                           text=True, encoding="utf-8", errors="replace", timeout=1200, env=env)
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, f"carousel setup did not finish ({e.__class__.__name__}). Run this setup again."
     if r.returncode == 0:
@@ -464,7 +474,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     system, arch = platform_key()
-    print(f"Solnest Content Studio setup ({system} {arch}, Python {platform.python_version()})")
+    print(f"STR Secrets Content Studio setup ({system} {arch}, Python {platform.python_version()})")
     rows, problems, low_balance = [], set(), False
 
     def row(ok, label, text):
@@ -528,17 +538,15 @@ def main(argv=None):
               "install --id Gyan.FFmpeg -e, then restart Claude Code and run this again.")
         return 2
     if "key" in problems:
-        if cok:
-            print("CAROUSELS READY (they need no key): say make me a carousel for <listing url>.")
-        print("ONE THING LEFT for videos: the KIE key. Paste it into the .env file after "
-              "KIE_API_KEY=, save, then run this setup again. Never paste the key into the chat.")
+        print("ONE THING LEFT: the KIE key. Paste it into the .env file after KIE_API_KEY=, "
+              "save, then run this setup again. Never paste the key into the chat.")
         return 1
     if low_balance:
         print("READY, but the KIE balance is under one video. Top up before making a video"
               + (" (carousels need no credits)." if cok else "."))
         return 0
-    print("ALL SET. Quit and reopen Claude Code, then say: make me a Solnest video for "
-          "<listing url>, or: make me a carousel for <listing url>")
+    print("ALL SET. The STR Secrets Content Studio is ready: make me a carousel for "
+          "<listing url>, or: make me a Solnest video for <listing url>")
     return 0
 
 

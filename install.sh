@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Solnest Content Studio installer (macOS / Linux; on Windows Git Bash it hands off to
+# STR Secrets Content Studio installer (macOS / Linux; on Windows Git Bash it hands off to
 # install.ps1). No admin rights, no PATH edits, nothing to type afterwards. Re-run any
 # time to update or repair; it keeps your .env and the downloaded ffmpeg.
 #
@@ -30,7 +30,7 @@ case "$OS" in
     ;;
 esac
 
-echo "Solnest Content Studio installer ($OS)"
+echo "STR Secrets Content Studio installer ($OS)"
 
 # 1. The skill files: a local clone if we are running from one, else the latest zip.
 SRC=""

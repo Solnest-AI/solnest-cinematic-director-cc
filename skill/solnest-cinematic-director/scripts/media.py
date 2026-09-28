@@ -59,6 +59,7 @@ def candidates(name):
                / "chocolatey" / "bin" / f"{name}.exe")
         yield home / "scoop" / "shims" / f"{name}.exe"
         yield pathlib.Path("C:/ffmpeg/bin") / f"{name}.exe"
+        yield home / ".local" / "bin" / f"{name}.exe"   # where the summit prep puts it
     else:
         for d in ("/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin", "/usr/bin",
                   "/snap/bin"):

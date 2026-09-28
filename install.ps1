@@ -1,4 +1,4 @@
-# Solnest Content Studio installer (Windows). No admin rights, no PATH edits, nothing to
+# STR Secrets Content Studio installer (Windows). No admin rights, no PATH edits, nothing to
 # type afterwards. Re-run any time to update or repair; it keeps your .env and the
 # downloaded ffmpeg.
 #
@@ -21,7 +21,7 @@ $Name = 'solnest-cinematic-director'
 $Dest = Join-Path $env:USERPROFILE ".claude\skills\$Name"
 $Tmp = $null
 
-Write-Host "Solnest Content Studio installer (Windows)"
+Write-Host "STR Secrets Content Studio installer (Windows)"
 
 # 1. The skill files: a local clone if we are running from one, else the latest zip.
 $Src = $null
@@ -96,6 +96,10 @@ function Find-Py {
     return $null
 }
 
+# The Claude desktop app on Windows is a Microsoft Store app: whatever it writes under AppData
+# is silently redirected into its own sandbox, and `uv python install` fails in uv's default
+# AppData home. Keep uv's Python under the profile, as the STR Secrets connections kit does.
+if (-not $env:UV_PYTHON_INSTALL_DIR) { $env:UV_PYTHON_INSTALL_DIR = Join-Path $env:USERPROFILE '.uv\python' }
 $Py = Find-Py
 if (-not $Py) {
     Write-Host "  installing Python (through uv, no admin needed)..."

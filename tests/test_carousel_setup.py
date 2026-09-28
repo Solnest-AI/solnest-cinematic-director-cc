@@ -180,6 +180,29 @@ class Docs(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertLess(readme.index('said "set this up"'), readme.index("## Use it"))
 
+    def test_setup_ends_on_a_green_check_and_offers_the_first_run_here(self):
+        # Summit Day 1: the attendee sees a green check, then is asked for an Airbnb link and
+        # "carousel or video", in the same chat. No quit-and-reopen in the middle.
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("\u2705 **STR Secrets Content Studio is set up.**", readme)
+        self.assertIn("a carousel or a video?", readme)
+        self.assertIn("No restart", readme)
+        self.assertIn("CAROUSEL.md", readme)
+        steps = readme[readme.index('said "set this up"'):readme.index("## Use it")]
+        self.assertNotIn("quit and reopen", steps.lower())
+        src = (SCRIPTS / "setup.py").read_text(encoding="utf-8")
+        self.assertNotIn("Quit and reopen Claude Code, then say", src)
+        self.assertNotIn("CAROUSELS READY", src)   # no first run until every key is in
+
+    def test_windows_keeps_uv_python_out_of_the_redirected_appdata(self):
+        # The desktop app is a Microsoft Store app: AppData writes are redirected and
+        # `uv python install` fails there (connections kit, attendee report 2026-09-28).
+        self.assertIn("UV_PYTHON_INSTALL_DIR", setup.UV_SH)
+        self.assertIn("UV_PYTHON_INSTALL_DIR", setup.UV_CMD)
+        self.assertIn("UV_PYTHON_INSTALL_DIR", (ROOT / "install.ps1").read_text(encoding="utf-8"))
+        media_src = (SCRIPTS / "media.py").read_text(encoding="utf-8")
+        self.assertIn('home / ".local" / "bin" / f"{name}.exe"', media_src)   # the prep's ffmpeg
+
     def test_no_em_or_en_dash_in_host_facing_docs(self):
         for p in (ROOT / "README.md", ROOT / "INSTALL.md", SKILL / "CAROUSEL.md"):
             text = p.read_text(encoding="utf-8")

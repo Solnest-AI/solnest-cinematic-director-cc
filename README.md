@@ -1,4 +1,4 @@
-# Solnest Content Studio (Claude Code)
+# STR Secrets Content Studio (Claude Code)
 
 Paste a listing link into Claude Code. Get back an on-brand **Instagram carousel** of the
 property (free), or a 25 to 30 second **cinematic walkthrough video** (about $2 in KIE
@@ -14,7 +14,7 @@ Do exactly this, one step per message. You run every command yourself with your 
 (Windows without Git Bash: your PowerShell tool). The person never opens a terminal and
 never types a command. Never ask for an API key in the chat, and never print one.
 
-1. Tell them in one line: "Setting up the Solnest Content Studio: about two minutes,
+1. Tell them in one line: "Setting up the STR Secrets Content Studio: a few minutes,
    nothing for you to do."
 2. Run the installer for their computer, with a 15 minute tool timeout (the first run
    downloads ffmpeg and a headless browser):
@@ -22,17 +22,29 @@ never types a command. Never ask for an API key in the chat, and never print one
      `powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/Solnest-AI/solnest-cinematic-director-cc/main/install.ps1 | iex"`
    - **Mac:**
      `curl -fsSL https://raw.githubusercontent.com/Solnest-AI/solnest-cinematic-director-cc/main/install.sh | bash`
-3. Show them the checklist it printed, then:
-   - **`ALL SET`:** tell them to quit and reopen Claude Code, then say
-     **make me a carousel for &lt;listing link&gt;** or **make me a Solnest video for &lt;listing link&gt;**.
-   - **`[!!] KIE key`:** only needed for videos. The installer created a `.env` file and
-     opened it. They get a key at https://kie.ai/api-key (sign in with Google, Create New
-     Key), paste it after `KIE_API_KEY=`, save, and tell you "saved". Run step 2 again.
-   - **`[!!] balance` under 455 credits:** one video is about 455 credits ($2.28). They top
-     up at https://kie.ai/billing ($5 minimum). Say it once; carousels do not need credits.
+3. Show them the checklist it printed, then read it:
+   - **`[!!] KIE key`:** setup is not finished until the key is in. The installer created a
+     `.env` file and opened it. They get a key at https://kie.ai/api-key (sign in with
+     Google, Create New Key), paste it after `KIE_API_KEY=`, save, and tell you "saved".
+     Run step 2 again.
    - **`[!!] carousels` or `[!!] ffmpeg`:** usually the network. Run step 2 once more.
    - **`ERROR: no working Python`:** run step 2 once more. If it repeats, send the full
      output to Ryan (ryan.lefebvre@strsecrets.com).
+   - **Every other line `[ok]`** (the `balance` line may say `[!!]`): setup is done. Go on.
+4. Say: "✅ **STR Secrets Content Studio is set up.**" If the `balance` line said `[!!]`,
+   add: "Carousels are free. A video needs about 455 Kie credits (USD 2.28): top up USD 5
+   at https://kie.ai/billing before you make one." Then ask: **"Want to make your first one
+   now? Paste the link to one of your Airbnb listings and tell me: a carousel or a video?"**
+5. When they answer, make it right here in this chat. No restart: read the instructions
+   from the installed skill with your Read tool and follow them from the top, as if the
+   skill had been called:
+   - **Carousel:** `~/.claude/skills/solnest-cinematic-director/CAROUSEL.md`
+   - **Video:** `~/.claude/skills/solnest-cinematic-director/SKILL.md`
+
+   (Windows: the same files under `%USERPROFILE%\.claude\skills\solnest-cinematic-director\`.)
+   A video with the balance under 455 credits: ask them to top up first, and offer the
+   carousel while they do. From the next time they open Claude Code, the skill loads on
+   its own: they just say "make me a carousel for ..." or "make me a Solnest video for ...".
 
 To update or repair later, run step 2 again: it keeps the `.env` and the downloaded ffmpeg.
 Full detail: [INSTALL.md](INSTALL.md).

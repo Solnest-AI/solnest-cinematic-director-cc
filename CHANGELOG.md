@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.1 (2026-09-28)
+
+Summit Day 1 polish, all verified on Mac and Windows.
+
+- Setup ends on a green check ("STR Secrets Content Studio is set up"), then asks for an
+  Airbnb link and "a carousel or a video?" and makes it in the same chat. No quit and
+  reopen in the middle. The offer only comes once the KIE key is in.
+- Windows: uv's Python stays under the profile (UV_PYTHON_INSTALL_DIR), never in the
+  AppData folder the desktop app redirects. Same fix as the connections kit.
+- ffmpeg from the summit prep (~/.local/bin) is found on Windows too, so nothing is
+  downloaded twice.
+- crop.py creates its output folder; carousel labels always fit on one line (or the slide
+  fails); covers must be crisp; every photo gets adaptive output sharpening.
+
 ## 2.1.0 (2026-09-28)
 
 Windows-ready, zero-terminal install for the STR Secrets summit Content Studio.

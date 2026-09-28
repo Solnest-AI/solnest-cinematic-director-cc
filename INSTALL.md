@@ -1,4 +1,4 @@
-# Install the Solnest Content Studio
+# Install the STR Secrets Content Studio
 
 Claude: the person pasted a link to this file into Claude Code. Follow it exactly, one
 step per message. You run every command yourself with your Bash tool (Windows without
@@ -35,9 +35,9 @@ Show the attendee the checklist it printed.
 
 ## 2. Read the checklist
 
-- Every line `[ok]` and it ends with `ALL SET`: done. Tell them to quit and reopen Claude
-  Code, then say **make me a carousel for &lt;listing url&gt;** (free) or
-  **make me a Solnest video for &lt;listing url&gt;**.
+- Every line `[ok]` (the `balance` line may say `[!!]`): done. Carry on with steps 4 and 5
+  of the README's "set this up" section: the green check line, then offer to make their first
+  carousel or video right here, from their Airbnb link. No restart needed.
 - `[!!] KIE key`: the installer created the `.env` file and opened it for them. They get
   a key at https://kie.ai/api-key (sign in with Google, Create New Key, no IP whitelist),
   paste it after `KIE_API_KEY=` in that file, save, and tell you "saved". Then run the

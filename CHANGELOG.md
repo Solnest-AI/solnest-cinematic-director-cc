@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.3 (2026-09-28)
+
+- A soft carousel cover is a note, not a stop. Typical Airbnb galleries score 37-53 against
+  the crispness bar of 80, so the gate fired on nearly every first try. The check now prints
+  the note, the slide renders (sharpened harder), and Claude offers the 7-cent photo fix
+  after the host has seen the preview. `soft_ok` is still accepted and only silences the note.
+
 ## 2.1.2 (2026-09-28)
 
 Money and silent-failure fixes from a Codex review of the whole skill.

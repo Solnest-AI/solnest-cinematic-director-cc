@@ -10,25 +10,31 @@ Built by Ryan Lefebvre / **Solnest AI**. Free to use.
 
 ---
 
-## Install (about 5 minutes)
+## Install (2 minutes, nothing to type in a terminal)
 
-You need [Claude Code](https://claude.com/claude-code). Open it and paste this:
+You need the [Claude Code](https://claude.com/claude-code) desktop app. Open it and
+paste this:
 
-> Install the Solnest Cinematic Director from https://github.com/Solnest-AI/solnest-cinematic-director-cc. Follow the "Claude: install steps" section of its README exactly.
+> Install the Solnest Content Studio. Follow the instructions at https://raw.githubusercontent.com/Solnest-AI/solnest-cinematic-director-cc/main/INSTALL.md exactly.
 
-Claude does the rest and tells you if anything is missing.
+Claude runs one installer for your computer (Mac or Windows). It puts the skill in
+`~/.claude/skills/`, finds or installs Python, downloads ffmpeg into the skill's own
+folder when your machine has none (no admin rights, nothing added to your PATH), picks up
+your KIE key from the STR Secrets Connections kit if you ran it, checks your balance, and
+prints a checklist. Then you restart Claude Code. Re-run the same line any time to update.
 
 ### What you need
 
 | Thing | What it does | Cost |
 |---|---|---|
 | **KIE API key** ([kie.ai](https://kie.ai/api-key)) | Generates the video clips | Pay as you go, $5 minimum, about $2 per video |
-| **ffmpeg** | Joins the clips on your machine | Free |
-| **Python 3.9+** | Runs the helper scripts (no packages to install) | Free |
+| **ffmpeg** | Joins the clips on your machine | Free. Downloaded for you |
+| **Python 3.9+** | Runs the helper scripts (no packages) | Free. Found or installed for you |
 | Firecrawl MCP (optional) | Reads non-Airbnb listing pages | Free plan is fine |
 
-Your KIE key goes in a file called `.env` inside the skill folder, one line:
-`KIE_API_KEY=your_key`. **Never paste a key into the chat.**
+Your KIE key lives in a file called `.env` inside the skill folder, one line:
+`KIE_API_KEY=your_key`. If you set up the STR Secrets Connections kit, the installer
+copies it from there. **Never paste a key into the chat.**
 
 ---
 
@@ -83,45 +89,35 @@ in Instagram. Details in
 
 ---
 
-## Claude: install steps
+## How the install works (for the curious)
 
-Follow these in order. Stop and tell the user plainly if a step fails.
-
-1. **Clone** this repo somewhere permanent, for example `~/solnest-cinematic-director-cc`
-   (Windows: `%USERPROFILE%\solnest-cinematic-director-cc`).
-2. **Put the skill where Claude Code finds it.**
-   - macOS / Linux: run `./install.sh` from the repo folder. It checks ffmpeg and Python
-     and symlinks `skill/solnest-cinematic-director` into `~/.claude/skills/`.
-   - Windows: copy the folder `skill\solnest-cinematic-director` to
-     `%USERPROFILE%\.claude\skills\solnest-cinematic-director` (copy, not a symlink).
-3. **ffmpeg.** Check `ffmpeg -version`. If missing: macOS `brew install ffmpeg`,
-   Windows `winget install --id Gyan.FFmpeg -e`, Linux `sudo apt install ffmpeg`.
-   The user must reopen the terminal afterwards.
-4. **Python.** Check `python3 --version` (Windows: `py -3 --version`). 3.9 or newer.
-   On Windows, do not type bare `python` if it opens the Microsoft Store.
-5. **KIE key.** If `KIE_API_KEY` is not already set, create
-   `<skills folder>/solnest-cinematic-director/.env` and ask the user to open it and add
-   `KIE_API_KEY=their_key` themselves. Do not ask for the key in chat. Do not print it.
-6. **Verify:** run `python3 <skills folder>/solnest-cinematic-director/scripts/kie.py --balance`
-   (Windows: `py -3 ...`). It must print the balance. Under 455 credits means they need to
-   top up before their first 30 second video.
-7. Tell the user to **restart Claude Code**, then say
-   `make me a Solnest video for <listing url>`.
+- `install.ps1` (Windows) and `install.sh` (Mac/Linux) copy `skill/solnest-cinematic-director`
+  into `~/.claude/skills/`, find a Python 3.9+ (a real one, never the Microsoft Store stub;
+  on a Mac never the Xcode stub), or install one through [uv](https://astral.sh/uv), then
+  hand over to `scripts/setup.py`.
+- `setup.py` reuses ffmpeg if the machine has it, otherwise downloads it into the skill's
+  `bin/` folder from the first mirror that works (gyan.dev, BtbN and ffmpeg-static on
+  GitHub for Windows; ffmpeg-static on GitHub and martin-riedl.de for Mac, Apple Silicon
+  and Intel). It writes a launcher, `bin/py`, so every command in the skill runs through
+  the same Python on every machine. It looks for the KIE key in the skill's `.env`, in the
+  environment, and in the STR Secrets Connections kit (through the `kie` server registered
+  in `~/.claude.json`, or the kit folder on the Desktop, Documents or Downloads), and copies
+  it into the skill's `.env`. Then it checks the balance: 455 credits is one video.
+- Nothing is installed system-wide and nothing needs admin rights.
 
 ## Update
 
-`git pull` in the repo folder (macOS/Linux, symlinked). On Windows, pull, then copy the
-skill folder over the installed one again. Your `.env` is not in the repo, so re-copy it
-if you replaced the folder.
+Paste the install line again. It replaces the scripts and keeps your `.env` and ffmpeg.
 
 ## For developers
 
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s tests -v      # offline: no network, no credits
+./install.sh                                  # install from this clone (Windows: .\install.ps1)
 ```
 
-Offline tests, no network and no credits. The scripts are Python standard library plus
-ffmpeg, and print ASCII only so they cannot crash a Windows console.
+The scripts are Python standard library plus ffmpeg, and print ASCII only so they cannot
+crash a Windows console.
 
 ---
 

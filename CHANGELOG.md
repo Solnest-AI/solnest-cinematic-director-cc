@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.0 (2026-11-24)
+
+Automatic, silent updates that keep the user's own changes:
+- Setup has a new step that turns on automatic updates. Once a day, in the background when
+  Claude Code starts, the newest published release (a GitHub release, never untagged work
+  on main) is installed and setup runs again. If setup fails on it, the old version is put
+  back by itself.
+- `scripts/update.py` does the update (and `--undo`, `--check`). It only replaces the
+  tool's own files and never touches `.env`, `bin/` (ffmpeg) or anything the user added.
+- The installer now copies `VERSION` into the skill folder, so the updater knows what is
+  installed.
+- The user's own changes to how the tool works go in `~/.solnest/cinematic-director/my-instructions.md`,
+  which updates never touch.
+
 ## 2.1.5 (2026-09-28)
 
 - A listing re-pull on Windows while a photo from the old pull is open (a viewer, File
